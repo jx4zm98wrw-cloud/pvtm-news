@@ -3,8 +3,9 @@
 // new since the last run. Runs in a self-rescheduling loop.
 //
 // State: seen article IDs are persisted to seen.json between cycles.
-// First run has no state, so we SEED it (mark everything seen, notify nothing)
-// to avoid dumping the whole homepage as "new".
+// First run has no state, so it CATCHES YOU UP: it notifies the newest
+// CATCHUP_COUNT items, then marks everything currently on the homepage as seen
+// so the rest don't re-alert later. After that, only genuinely new items alert.
 //
 // Usage:
 //   node monitor.mjs            # loop, checking every 30 min (default)
@@ -19,6 +20,12 @@ import { getNews, BASE_URL } from './scraper.mjs';
 import { notifyNewItems } from './notify.mjs';
 
 const STATE_FILE = new URL('./seen.json', import.meta.url);
+
+// On the very first run (no state yet), notify the newest N items to catch you
+// up, then go quiet on them. Override with CATCHUP_COUNT (0 = seed silently).
+const CATCHUP_COUNT = process.env.CATCHUP_COUNT !== undefined
+	? Number(process.env.CATCHUP_COUNT)
+	: 5;
 
 // Optional .env support without adding a dependency (Node >= 20.12).
 try { process.loadEnvFile(new URL('./.env', import.meta.url)); } catch { /* no .env — fine */ }
@@ -47,10 +54,23 @@ async function checkOnce () {
 	const withId = items.filter((it) => it.id); // need a stable key to dedup
 
 	if (fresh) {
+		// withId is already newest-first (getNews sorts by date desc).
+		const catchUp = CATCHUP_COUNT > 0 ? withId.slice(0, CATCHUP_COUNT) : [];
+
+		if (catchUp.length > 0) {
+			log(`first run — catching you up on the ${catchUp.length} newest of ${withId.length} item(s):`);
+			catchUp.forEach((it) => log(`  • [${it.date || '??'}] ${it.title}`));
+			const results = await notifyNewItems(catchUp);
+			results.forEach((r) => log(`  notify ${r.channel}:`, r.sent ? `sent ${r.sent}` : (r.skipped || r.error)));
+		} else {
+			log(`first run — seeded ${withId.length} items silently (CATCHUP_COUNT=0)`);
+		}
+
+		// Mark ALL current items seen, so items beyond the catch-up window
+		// (and the caught-up ones) don't alert again next cycle.
 		withId.forEach((it) => seen.add(it.id));
 		await saveSeen(seen);
-		log(`seeded ${seen.size} existing items (first run — no notifications sent)`);
-		return [];
+		return catchUp;
 	}
 
 	const newItems = withId.filter((it) => !seen.has(it.id));

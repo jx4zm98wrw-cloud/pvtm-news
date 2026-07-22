@@ -37,8 +37,9 @@ node monitor.mjs --once   # single check then exit (good for cron/launchd)
 ```
 
 - **State:** seen article IDs persist to `seen.json`. `"new"` = current IDs − seen IDs.
-- **First run seeds silently:** it marks everything currently on the homepage as
-  seen and sends **no** notifications, so your first alert is a genuinely new item.
+- **First run catches you up:** it notifies the newest `CATCHUP_COUNT` items
+  (default 5; set `CATCHUP_COUNT=0` to seed silently instead), then marks
+  everything on the homepage seen so only genuinely new items alert afterward.
 - **Each item shows category, date, and title (link)** — the email adds a summary
   snippet and colour-codes the category (investigation notices in accent blue).
   All new items in a cycle are batched into one Telegram message and one email.
@@ -120,7 +121,8 @@ your `chat id`.
 (every 30 min) on GitHub's runners — no server needed.
 
 - **State:** `seen.json` persists between runs via `actions/cache` (it is *not*
-  committed). First run seeds silently, as locally.
+  committed). First run catches you up on the newest `CATCHUP_COUNT` (default 5),
+  as locally.
 - **Secrets:** set these in the repo → Settings → Secrets and variables → Actions:
   `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` (and the `SMTP_*` / `MAIL_*` set for email).
   Never commit `.env`.
