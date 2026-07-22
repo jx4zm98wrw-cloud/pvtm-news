@@ -1,0 +1,18 @@
+{
+  "name": "pvtm-news",
+  "version": "1.0.0",
+  "description": "Fetch the newest news from pvtm.gov.vn (Vietnam Trade Remedies Authority) and notify on new items via Telegram + Email",
+  "type": "module",
+  "bin": {
+    "pvtm-news": "index.mjs"
+  },
+  "scripts": {
+    "start": "node index.mjs",
+    "monitor": "node monitor.mjs"
+  },
+  "dependencies": {
+    "cheerio": "^1.0.0",
+    "got": "^14.0.0",
+    "nodemailer": "^6.9.0"
+  }
+}

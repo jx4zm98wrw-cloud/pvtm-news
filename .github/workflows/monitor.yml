@@ -1,0 +1,49 @@
+name: pvtm news monitor
+
+# Runs on a schedule (and on-demand). GitHub cron is best-effort — runs may be
+# delayed a few minutes, especially near the top of the hour. Scheduled
+# workflows only run on the default branch, and GitHub pauses them after ~60
+# days of repo inactivity.
+on:
+  schedule:
+    - cron: '*/30 * * * *'   # every 30 minutes
+  workflow_dispatch: {}        # lets you trigger a run manually from the Actions tab
+
+# Don't let a manual run and a scheduled run clash over the state cache.
+concurrency:
+  group: pvtm-monitor
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - run: npm install --no-audit --no-fund
+
+      # Restore seen.json from the previous run, and save the updated one after.
+      # The unique per-run key never hits exactly, so the post-job save always
+      # writes; restore-keys loads the most recent prior cache.
+      - uses: actions/cache@v4
+        with:
+          path: seen.json
+          key: pvtm-seen-${{ github.run_id }}
+          restore-keys: |
+            pvtm-seen-
+
+      - run: node monitor.mjs --once
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          SMTP_HOST: ${{ secrets.SMTP_HOST }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT }}
+          SMTP_SECURE: ${{ secrets.SMTP_SECURE }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASS: ${{ secrets.SMTP_PASS }}
+          MAIL_TO: ${{ secrets.MAIL_TO }}
+          MAIL_FROM: ${{ secrets.MAIL_FROM }}
