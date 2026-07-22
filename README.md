@@ -50,7 +50,7 @@ node monitor.mjs --once   # single check then exit (good for cron/launchd)
 
 | Channel  | Vars |
 |----------|------|
-| Telegram | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` |
+| Telegram | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` (comma-separated for multiple chats; add `_2`/`_3` suffixed pairs for extra bots) |
 | Email    | `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASS`, `MAIL_TO`, `MAIL_FROM` (optional) |
 
 `monitor.mjs` auto-loads a `.env` file if present. **Secrets are read from the

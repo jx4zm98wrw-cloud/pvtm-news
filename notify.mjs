@@ -98,21 +98,46 @@ function buildPlainText (items) {
 }
 
 // --- Channels ---------------------------------------------------------------
-async function sendTelegram (items) {
-	const token = process.env.TELEGRAM_BOT_TOKEN;
-	const chatId = process.env.TELEGRAM_CHAT_ID;
-	if (!token || !chatId) return { channel: 'telegram', skipped: 'missing env' };
+// Collect every Telegram destination from env:
+//  - TELEGRAM_CHAT_ID may be a comma-separated list  (one bot -> many chats)
+//  - add more bots with TELEGRAM_BOT_TOKEN_2 / TELEGRAM_CHAT_ID_2, _3, ...
+function telegramTargets () {
+	const targets = [];
+	for (const suffix of ['', '_2', '_3', '_4', '_5']) {
+		const token = process.env[`TELEGRAM_BOT_TOKEN${suffix}`];
+		const chatIds = process.env[`TELEGRAM_CHAT_ID${suffix}`];
+		if (!token || !chatIds) continue;
+		for (const chatId of chatIds.split(',').map((s) => s.trim()).filter(Boolean)) {
+			targets.push({ token, chatId });
+		}
+	}
+	return targets;
+}
 
-	await got.post(`https://api.telegram.org/bot${token}/sendMessage`, {
-		json: {
-			chat_id: chatId,
-			text: buildTelegramHtml(items),
-			parse_mode: 'HTML',
-			disable_web_page_preview: true
-		},
-		timeout: { request: 15000 }
-	});
-	return { channel: 'telegram', sent: items.length };
+async function sendTelegram (items) {
+	const targets = telegramTargets();
+	if (targets.length === 0) return { channel: 'telegram', skipped: 'missing env' };
+
+	const text = buildTelegramHtml(items);
+	const results = await Promise.allSettled(
+		targets.map((t) =>
+			got.post(`https://api.telegram.org/bot${t.token}/sendMessage`, {
+				json: {
+					chat_id: t.chatId,
+					text,
+					parse_mode: 'HTML',
+					disable_web_page_preview: true
+				},
+				timeout: { request: 15000 }
+			})
+		)
+	);
+
+	const ok = results.filter((r) => r.status === 'fulfilled').length;
+	if (ok < targets.length) {
+		return { channel: 'telegram', error: `delivered to ${ok}/${targets.length} chat(s)` };
+	}
+	return { channel: 'telegram', sent: `${items.length} item(s) → ${targets.length} chat(s)` };
 }
 
 async function sendEmail (items) {
