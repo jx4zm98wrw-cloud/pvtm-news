@@ -113,3 +113,18 @@ your `chat id`.
   alerts on partial success).
 - The built-in loop is a foreground process. For true background/boot-persistent
   running, wrap `--once` in cron / launchd, or use a process manager.
+
+## Deploy (GitHub Actions)
+
+`.github/workflows/monitor.yml` runs `node monitor.mjs --once` on a schedule
+(every 30 min) on GitHub's runners — no server needed.
+
+- **State:** `seen.json` persists between runs via `actions/cache` (it is *not*
+  committed). First run seeds silently, as locally.
+- **Secrets:** set these in the repo → Settings → Secrets and variables → Actions:
+  `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` (and the `SMTP_*` / `MAIL_*` set for email).
+  Never commit `.env`.
+- **Trigger manually:** Actions tab → "pvtm news monitor" → Run workflow.
+- **Caveats:** GitHub cron is best-effort (minutes of delay possible); scheduled
+  runs only fire on the default branch; GitHub pauses schedules after ~60 days
+  of repo inactivity.
