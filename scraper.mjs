@@ -40,7 +40,7 @@ const PRIORITY = { A: 0, B: 1, C: 2, D: 3 };
 const GROUP_SOURCE = {
 	A: { page: 'news', parse: 'cards' },
 	B: { page: 'news', parse: 'cards' },
-	C: { page: 'newsletter', parse: null }, // TODO: newsletter bulletin tables — add parser
+	C: { page: 'newsletter', parse: 'newsletter' },
 	D: { page: 'legal', parse: 'table' }
 };
 const UA = {
@@ -112,6 +112,31 @@ function parseLegalTable (html, cat) {
 	return items;
 }
 
+// Group C: newsletter pages. Rows = [title, date, "Tải về"] where the link is a
+// real file URL (file/<guid>). Titles are generic, so guid = identity. Capped to
+// the most recent 25 per category (archive goes back years; only recent matters).
+function parseNewsletterTable (html, cat) {
+	const $ = cheerio.load(html);
+	const items = [];
+	$('table tr').each((_, tr) => {
+		const tds = $(tr).find('td');
+		if (tds.length < 3) return;
+		const title = $(tds[0]).text().replace(/\s+/g, ' ').trim();
+		const href = $(tr).find('a[href]').attr('href') || '';
+		const file = href.match(/file\/([0-9a-f-]{36})/i);
+		if (!title || !file) return;
+		const dateRaw = ($(tds[1]).text().match(/\d{1,2}\/\d{1,2}\/\d{4}/) || [])[0] || null;
+		items.push({
+			group: 'C', groupLabel: labelOf('C'), category: cat.name,
+			key: file[1], code: null,
+			title, url: new URL(href, BASE_URL).href,
+			date: dateRaw, dateISO: toISODate(dateRaw),
+			summary: null, isDoc: true
+		});
+	});
+	return byNewest(items).slice(0, 25);
+}
+
 async function fetchCategory (groupKey, cat) {
 	const src = GROUP_SOURCE[groupKey];
 	if (!src || !src.parse) return []; // deferred group (e.g. C)
@@ -119,7 +144,9 @@ async function fetchCategory (groupKey, cat) {
 	const url = `${BASE_URL}/default.aspx?${q}&category_id=${cat.id}`;
 	try {
 		const html = (await got(url, UA)).body;
-		return src.parse === 'table' ? parseLegalTable(html, cat) : parseNewsCards(html, groupKey, cat);
+		if (src.parse === 'table') return parseLegalTable(html, cat);
+		if (src.parse === 'newsletter') return parseNewsletterTable(html, cat);
+		return parseNewsCards(html, groupKey, cat);
 	} catch {
 		return []; // a failing category must not kill the whole run
 	}

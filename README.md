@@ -19,7 +19,7 @@ gửi cảnh báo qua **Telegram + Email**, gom theo nhóm ưu tiên và chỉ b
 |------|------|-------|------------|
 | A | ⚖️ Tin điều tra | `page=news&do=browse` (thẻ) | ✅ |
 | B | 📌 Tin chung | `page=news&do=browse` (thẻ) | ✅ |
-| C | 📰 Ấn phẩm | `page=newsletter` (bảng riêng) | ⏳ **hoãn** — cấu trúc bảng khác, chưa có parser |
+| C | 📰 Ấn phẩm | `page=newsletter` (bảng riêng) | ✅ định danh = `file guid`, link tải trực tiếp (25 bản gần nhất/danh mục) |
 | D | 📄 Văn bản | `page=legal` (bảng, `a.doc-table__title`) | ✅ định danh = `Số ký hiệu` |
 
 - **Ưu tiên chỉ ảnh hưởng thứ tự hiển thị** (gom A→B→C→D). *Chọn* tin theo **ngày mới nhất** (lọc-trước-chọn-sau, không lỗ hổng).
@@ -64,5 +64,5 @@ node monitor.mjs --every 30
 
 ## Việc còn lại / hạn chế
 
-- **Nhóm C (Ấn phẩm/Bản tin) đang hoãn** — trang `page=newsletter` dùng bảng khác (không `div.news`, không `a.doc-table__title`); cần parser riêng. Config C đã sẵn (`GROUP_SOURCE.C.parse = null` để bật lại).
+- Nhóm C giới hạn **25 bản tin gần nhất/danh mục** (kho lưu trữ nhiều năm; chỉ tin gần đây mới có ý nghĩa cảnh báo).
 - Selector gắn với HTML hiện tại của site; nếu site đổi giao diện, cập nhật parser trong `scraper.mjs`.
