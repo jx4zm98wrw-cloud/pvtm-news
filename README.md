@@ -11,7 +11,7 @@ gửi cảnh báo qua **Telegram + Email**, gom theo nhóm ưu tiên và chỉ b
 | `messages.mjs` | Dựng tin nhắn (thuần): Telegram (số + link tiêu đề) + email newsletter; subject thương hiệu (`buildSubject`) |
 | `notify.mjs` | Gửi: Telegram (đa đích) + Email (SMTP), kích hoạt theo env |
 | `monitor.mjs` | Cảnh báo định kỳ: diff theo `seen.json`, chỉ báo tin mới |
-| `api/telegram.mjs` | Webhook Vercel: bot vào nhóm → gửi tin 7 ngày qua |
+| `api/telegram.mjs` | Webhook Vercel: bot vào nhóm → gửi tin 30 ngày qua; lệnh `/id` trả chat_id |
 
 ## Nhóm & ưu tiên (A → B → C → D)
 
@@ -62,6 +62,10 @@ node monitor.mjs --every 30
 
 - **Cảnh báo định kỳ:** GitHub Actions (`.github/workflows/monitor.yml`), `seen.json` trong Actions cache.
 - **Webhook lời chào:** Vercel (`api/telegram.mjs`), stateless. Đăng ký: `node set-webhook.mjs https://<app>.vercel.app/api/telegram`.
+- **Nhóm nhận cảnh báo định kỳ:** lời chào tự vào nhóm, nhưng cảnh báo tin mới (monitor)
+  chỉ gửi tới `TELEGRAM_CHAT_ID`. Để nhóm cũng nhận: gõ **`/id`** trong nhóm → bot trả
+  chat_id → thêm vào `TELEGRAM_CHAT_ID` (phẩy, cả GitHub secret lẫn `.env`). *(Tự động
+  hoá cho mọi nhóm cần kho chat_id chung — xem "phương án B", chưa triển khai.)*
 
 ## Việc còn lại / hạn chế
 
