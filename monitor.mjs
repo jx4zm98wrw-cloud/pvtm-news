@@ -1,95 +1,77 @@
 #!/usr/bin/env node
-// Monitor pvtm.gov.vn and notify (Telegram + Email) ONLY about news that is
-// new since the last run. Runs in a self-rescheduling loop.
+// Periodic monitor — detects genuinely new items across all groups (A/B/C/D)
+// and sends a grouped alert. "New" = key (news id / Số ký hiệu) not seen before.
 //
-// State: seen article IDs are persisted to seen.json between cycles.
-// First run has no state, so it CATCHES YOU UP: it notifies the newest
-// CATCHUP_COUNT items, then marks everything currently on the homepage as seen
-// so the rest don't re-alert later. After that, only genuinely new items alert.
+// State: seen.json { version, seenKeys, updatedAt }. The source set changed in
+// v2 (multi-category + legal docs), so a v1/absent state is re-seeded SILENTLY
+// to avoid dumping the whole catalogue as "new" on the first upgraded run.
 //
 // Usage:
-//   node monitor.mjs            # loop, checking every 30 min (default)
-//   node monitor.mjs --every 10 # loop, every 10 minutes
-//   node monitor.mjs --once     # single check then exit (good for cron)
-//
-// Config a channel by exporting its env vars (see notify.mjs). Optionally put
-// them in a .env file next to this script — it is loaded automatically.
+//   node monitor.mjs            # loop every 30 min
+//   node monitor.mjs --every 10 # every 10 minutes
+//   node monitor.mjs --once     # single check (for cron / GitHub Actions)
 
 import { readFile, writeFile } from 'node:fs/promises';
-import { getNews, BASE_URL } from './scraper.mjs';
-import { notifyNewItems } from './notify.mjs';
+import { getAllItems, forDisplay, BASE_URL } from './scraper.mjs';
+import { notifyItems } from './notify.mjs';
 
 const STATE_FILE = new URL('./seen.json', import.meta.url);
+const STATE_VERSION = 2;
 
-// On the very first run (no state yet), notify the newest N items to catch you
-// up, then go quiet on them. Override with CATCHUP_COUNT (0 = seed silently).
-const CATCHUP_COUNT = process.env.CATCHUP_COUNT !== undefined
-	? Number(process.env.CATCHUP_COUNT)
-	: 5;
-
-// Optional .env support without adding a dependency (Node >= 20.12).
-try { process.loadEnvFile(new URL('./.env', import.meta.url)); } catch { /* no .env — fine */ }
+try { process.loadEnvFile(new URL('./.env', import.meta.url)); } catch { /* no .env */ }
 
 const now = () => new Date().toISOString().replace('T', ' ').slice(0, 19);
 const log = (...a) => console.log(`[${now()}]`, ...a);
+const todayVN = () => {
+	const d = new Date();
+	return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
+};
 
 async function loadSeen () {
 	try {
 		const raw = JSON.parse(await readFile(STATE_FILE, 'utf8'));
-		return { ids: new Set(raw.seenIds || []), fresh: false };
+		if (raw.version !== STATE_VERSION) return { keys: new Set(), fresh: true }; // schema changed
+		return { keys: new Set(raw.seenKeys || []), fresh: false };
 	} catch {
-		return { ids: new Set(), fresh: true }; // no state file yet
+		return { keys: new Set(), fresh: true };
 	}
 }
 
-async function saveSeen (idSet) {
-	const payload = { seenIds: [...idSet], updatedAt: new Date().toISOString() };
-	await writeFile(STATE_FILE, JSON.stringify(payload, null, 2));
+async function saveSeen (keySet) {
+	await writeFile(STATE_FILE, JSON.stringify({
+		version: STATE_VERSION, seenKeys: [...keySet], updatedAt: new Date().toISOString()
+	}, null, 2));
 }
 
-// One check cycle. Returns the list of new items (for logging/tests).
 async function checkOnce () {
-	const { ids: seen, fresh } = await loadSeen();
-	const items = await getNews();
-	const withId = items.filter((it) => it.id); // need a stable key to dedup
+	const { keys: seen, fresh } = await loadSeen();
+	const items = (await getAllItems()).filter((it) => it.key);
 
 	if (fresh) {
-		// withId is already newest-first (getNews sorts by date desc).
-		const catchUp = CATCHUP_COUNT > 0 ? withId.slice(0, CATCHUP_COUNT) : [];
-
-		if (catchUp.length > 0) {
-			log(`first run — catching you up on the ${catchUp.length} newest of ${withId.length} item(s):`);
-			catchUp.forEach((it) => log(`  • [${it.date || '??'}] ${it.title}`));
-			const results = await notifyNewItems(catchUp);
-			results.forEach((r) => log(`  notify ${r.channel}:`, r.sent ? `sent ${r.sent}` : (r.skipped || r.error)));
-		} else {
-			log(`first run — seeded ${withId.length} items silently (CATCHUP_COUNT=0)`);
-		}
-
-		// Mark ALL current items seen, so items beyond the catch-up window
-		// (and the caught-up ones) don't alert again next cycle.
-		withId.forEach((it) => seen.add(it.id));
+		items.forEach((it) => seen.add(it.key));
 		await saveSeen(seen);
-		return catchUp;
-	}
-
-	const newItems = withId.filter((it) => !seen.has(it.id));
-
-	if (newItems.length === 0) {
-		log(`no new news (${withId.length} on homepage, all seen)`);
+		log(`seeded ${seen.size} items (first run / schema v${STATE_VERSION} — no alert sent)`);
 		return [];
 	}
 
-	log(`${newItems.length} NEW item(s):`);
-	newItems.forEach((it) => log(`  • [${it.date || '??'}] ${it.title}`));
+	const newItems = items.filter((it) => !seen.has(it.key));
+	if (newItems.length === 0) {
+		log(`no new items (${items.length} scanned, all seen)`);
+		return [];
+	}
 
-	const results = await notifyNewItems(newItems);
+	const display = forDisplay(newItems);
+	log(`${newItems.length} NEW item(s):`);
+	display.forEach((it) => log(`  • [${it.group}] ${it.date || '??'} ${it.title.slice(0, 60)}`));
+
+	const results = await notifyItems(display, {
+		title: `${newItems.length} tin mới`, dateStr: todayVN(), days: 7
+	});
 	results.forEach((r) => log(`  notify ${r.channel}:`, r.sent ? `sent ${r.sent}` : (r.skipped || r.error)));
 
-	// Only mark as seen after a notification attempt, so a total failure retries.
-	newItems.forEach((it) => seen.add(it.id));
+	newItems.forEach((it) => seen.add(it.key));
 	await saveSeen(seen);
-	return newItems;
+	return display;
 }
 
 async function main () {
@@ -101,11 +83,7 @@ async function main () {
 	log(`monitoring ${BASE_URL}${once ? ' (single run)' : ` every ${minutes} min`}`);
 
 	const cycle = async () => {
-		try {
-			await checkOnce();
-		} catch (err) {
-			log('cycle error:', err.message); // keep the loop alive on transient failures
-		}
+		try { await checkOnce(); } catch (err) { log('cycle error:', err.message); }
 	};
 
 	await cycle();
@@ -114,7 +92,6 @@ async function main () {
 	const intervalMs = Math.max(1, minutes) * 60_000;
 	const tick = () => setTimeout(async () => { await cycle(); tick(); }, intervalMs);
 	tick();
-
 	process.on('SIGINT', () => { log('stopping'); process.exit(0); });
 }
 

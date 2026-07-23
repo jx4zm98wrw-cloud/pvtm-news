@@ -1,155 +1,68 @@
 # pvtm-news
 
-Fetch the newest news from **[pvtm.gov.vn](https://pvtm.gov.vn)** — the Vietnam
-Trade Remedies Authority (Cục Phòng vệ Thương mại) — as structured data, and
-**monitor** it to get **Telegram + Email** alerts about news that is new since
-the last run.
+Theo dõi tin từ **[pvtm.gov.vn](https://pvtm.gov.vn)** (Cục Phòng vệ Thương mại) và
+gửi cảnh báo qua **Telegram + Email**, gom theo nhóm ưu tiên và chỉ báo tin mới.
 
-## Why not `node-website-scraper`?
+## Kiến trúc (tách lớp)
 
-`node-website-scraper` **mirrors** a whole site (HTML + every image/CSS/JS asset)
-for offline browsing — it produces files on disk, not data. To *extract news*
-(titles, dates, links) the right tool is a targeted **fetch + parse**: one HTTP
-GET with [`got`](https://github.com/sindresorhus/got), parsed with
-[`cheerio`](https://cheerio.js.org/).
+| File | Vai trò |
+|------|---------|
+| `scraper.mjs` | Lấy dữ liệu: đa nguồn theo danh mục, gắn nhóm, sắp xếp, cửa sổ thời gian |
+| `messages.mjs` | Dựng tin nhắn (thuần): Telegram nút-bấm-lai + email newsletter |
+| `notify.mjs` | Gửi: Telegram (đa đích) + Email (SMTP), kích hoạt theo env |
+| `monitor.mjs` | Cảnh báo định kỳ: diff theo `seen.json`, chỉ báo tin mới |
+| `api/telegram.mjs` | Webhook Vercel: bot vào nhóm → gửi tin 7 ngày qua |
 
-## Install
+## Nhóm & ưu tiên (A → B → C → D)
+
+| Nhóm | Nhãn | Nguồn | Trạng thái |
+|------|------|-------|------------|
+| A | ⚖️ Tin điều tra | `page=news&do=browse` (thẻ) | ✅ |
+| B | 📌 Tin chung | `page=news&do=browse` (thẻ) | ✅ |
+| C | 📰 Ấn phẩm | `page=newsletter` (bảng riêng) | ⏳ **hoãn** — cấu trúc bảng khác, chưa có parser |
+| D | 📄 Văn bản | `page=legal` (bảng, `a.doc-table__title`) | ✅ định danh = `Số ký hiệu` |
+
+- **Ưu tiên chỉ ảnh hưởng thứ tự hiển thị** (gom A→B→C→D). *Chọn* tin theo **ngày mới nhất** (lọc-trước-chọn-sau, không lỗ hổng).
+- Nhóm D dùng `Số ký hiệu` làm định danh; văn bản không ngày (WTO) xếp cuối. Link D trỏ về trang danh mục (nút "Tải về" trên site là JS, không có URL tĩnh).
+
+## Cài đặt & chạy
 
 ```bash
 npm install
+node index.mjs            # liệt kê theo nhóm, ghi news.json
+node monitor.mjs --once   # 1 lần (cron/GitHub Actions)
+node monitor.mjs --every 30
 ```
 
-## A) One-off list — `index.mjs`
+## Hai loại tin nhắn
 
-```bash
-node index.mjs            # print newest 10, also write news.json
-node index.mjs 20         # print newest 20
-node index.mjs 20 --json  # raw JSON only (pipe-friendly)
-```
+- **Cảnh báo định kỳ** (`monitor.mjs`): seen-diff theo `key` → mỗi tin gửi **đúng 1 lần**, gom theo nhóm.
+- **Lời chào** (`api/telegram.mjs`, khi bot vào nhóm): tin trong **7 ngày gần nhất, tối đa 8**; nếu trống → tin gần nhất + ghi chú. Không dùng "số cố định" nên tin cũ không bị kéo vào.
+- **Telegram:** tiêu đề đầy đủ trong chữ (đánh số theo nhóm) + hàng nút số `1️⃣…` để mở + `Tất cả tin ↗`; văn bản D có nút `⬇`.
+- **Email:** newsletter navy/vàng đồng, gom theo nhóm, tóm tắt cho A/B, nút "Tải văn bản" cho D.
 
-## B) New-news monitor + alerts — `monitor.mjs`
+## Cấu hình (env — xem `.env.example`)
 
-```bash
-cp .env.example .env      # then fill in Telegram and/or Email vars
-node monitor.mjs          # loop, checking every 30 min
-node monitor.mjs --every 10   # every 10 minutes
-node monitor.mjs --once   # single check then exit (good for cron/launchd)
-```
-
-- **State:** seen article IDs persist to `seen.json`. `"new"` = current IDs − seen IDs.
-- **First run catches you up:** it notifies the newest `CATCHUP_COUNT` items
-  (default 5; set `CATCHUP_COUNT=0` to seed silently instead), then marks
-  everything on the homepage seen so only genuinely new items alert afterward.
-- **Each item shows category, date, and title (link)** — the email adds a summary
-  snippet and colour-codes the category (investigation notices in accent blue).
-  All new items in a cycle are batched into one Telegram message and one email.
-- **Channels are independent:** each activates only if its env vars are set, so
-  you can run with just one. A missing/failing channel is logged, not fatal.
-
-### Configuration (env vars — see `.env.example`)
-
-| Channel  | Vars |
-|----------|------|
-| Telegram | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` (comma-separated for multiple chats; add `_2`/`_3` suffixed pairs for extra bots) |
-| Email    | `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASS`, `MAIL_TO`, `MAIL_FROM` (optional) |
-
-`monitor.mjs` auto-loads a `.env` file if present. **Secrets are read from the
-environment only — never committed** (`.env`, `seen.json`, `news.json` are gitignored).
-
-**Telegram setup:** message `@BotFather` → `/newbot` → copy the token. Message
-your bot once, then open `https://api.telegram.org/bot<TOKEN>/getUpdates` to read
-your `chat id`.
-
-**Gmail email setup:** `SMTP_HOST=smtp.gmail.com`, `SMTP_PORT=465`,
-`SMTP_SECURE=true`, and `SMTP_PASS` = a Google **App Password** (not your login).
-
-## Files
-
-| File | Role |
+| Kênh | Biến |
 |------|------|
-| `scraper.mjs` | Reusable core: `fetchHomepage`, `parseNews`, `selectNewest`, `getNews` |
-| `index.mjs`   | CLI — print newest N, write `news.json` |
-| `monitor.mjs` | Loop: diff against `seen.json`, notify only new items |
-| `notify.mjs`  | Telegram + Email channels (env-gated) |
+| Telegram | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` (phẩy = nhiều chat; `_2`/`_3` = thêm bot) |
+| Email | `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASS`, `MAIL_TO`, `MAIL_FROM` |
+| Webhook | `WEBHOOK_SECRET` (khớp giữa Vercel ↔ setWebhook) |
 
-## State file (`seen.json`)
-
-```json
-{ "seenIds": ["9d8c469f-...", "a4f7c914-..."], "updatedAt": "2026-07-22T15:44:06.000Z" }
-```
-
-## Auto-welcome new chats (Vercel webhook)
-
-`api/telegram.mjs` is a Vercel serverless function. When the bot is **added to a
-group or channel**, Telegram POSTs a `my_chat_member` event to it and the bot
-replies with the newest 5 articles. It is **stateless** (fetches live, no cache).
-
-Deploy:
-1. Import this repo into Vercel (free tier is fine — the function only runs when
-   the bot is added, so it stays well within limits).
-2. Set env vars in the Vercel project: `TELEGRAM_BOT_TOKEN`, `WEBHOOK_SECRET`.
-3. Register the webhook once (locally, with the same vars in `.env`):
-   ```bash
-   node set-webhook.mjs https://<your-app>.vercel.app/api/telegram
-   ```
-4. Add the bot to a group/channel (as **admin** for channels) — it welcomes it.
-
-Notes:
-- **Webhook and `getUpdates` are mutually exclusive.** While the webhook is set,
-  `get-chat-id.mjs` won't work; run `node set-webhook.mjs --delete` to use it,
-  then re-register. Check status with `node set-webhook.mjs --info`.
-- The scheduled news push (GitHub Actions) is unaffected — sending works
-  regardless of webhook mode.
-
-## Output shape (`news.json`)
+## Trạng thái (`seen.json`)
 
 ```json
-[
-  {
-    "id": "9d8c469f-8fcd-4df5-a5fb-98a544eafe97",
-    "title": "Bộ Công Thương ban hành Quyết định rà soát ...",
-    "url": "https://pvtm.gov.vn/default.aspx?page=news-detail&do=detail&id=9d8c469f-...",
-    "category": "Tin điều tra của Việt Nam",
-    "date": "20/07/2026",
-    "dateISO": "2026-07-20",
-    "summary": "Ngày 19 tháng 01 năm 2026, Bộ Công Thương ..."
-  }
-]
+{ "version": 2, "seenKeys": ["<id hoặc Số ký hiệu>"], "updatedAt": "…" }
 ```
 
-## How it works
+`version` đổi khi schema nguồn đổi → state cũ (v1) được **seed lại im lặng**, tránh dội toàn bộ catalogue như "tin mới".
 
-1. **Fetch** — `GET https://pvtm.gov.vn` with a browser user-agent.
-2. **Parse** — every article is a `div.news` card:
-   title → `.news__title a` (falls back to image `alt`); link → `.news__title a[href]`
-   (relative `./default.aspx?...`, resolved to absolute); category → `.news__tag`;
-   date → `.news__info` (`DD/MM/YYYY` → `dateISO`); summary → `.news__desc`.
-3. **Diff** — dedup by article `id`, compare to `seen.json`, notify the difference.
+## Deploy
 
-## Caveats
+- **Cảnh báo định kỳ:** GitHub Actions (`.github/workflows/monitor.yml`), `seen.json` trong Actions cache.
+- **Webhook lời chào:** Vercel (`api/telegram.mjs`), stateless. Đăng ký: `node set-webhook.mjs https://<app>.vercel.app/api/telegram`.
 
-- Selectors are coupled to the site's current HTML. If `pvtm.gov.vn` redesigns,
-  update the selectors in `parseNews()` (in `scraper.mjs`).
-- The homepage shows only the most recent articles. Older news would need the
-  category pages (`?page=news&do=browse&category_id=...`) paginated.
-- Notification policy is **at-most-once**: an item is marked seen after the
-  notify attempt, so a send failure is logged but not retried (avoids duplicate
-  alerts on partial success).
-- The built-in loop is a foreground process. For true background/boot-persistent
-  running, wrap `--once` in cron / launchd, or use a process manager.
+## Việc còn lại / hạn chế
 
-## Deploy (GitHub Actions)
-
-`.github/workflows/monitor.yml` runs `node monitor.mjs --once` on a schedule
-(every 30 min) on GitHub's runners — no server needed.
-
-- **State:** `seen.json` persists between runs via `actions/cache` (it is *not*
-  committed). First run catches you up on the newest `CATCHUP_COUNT` (default 5),
-  as locally.
-- **Secrets:** set these in the repo → Settings → Secrets and variables → Actions:
-  `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` (and the `SMTP_*` / `MAIL_*` set for email).
-  Never commit `.env`.
-- **Trigger manually:** Actions tab → "pvtm news monitor" → Run workflow.
-- **Caveats:** GitHub cron is best-effort (minutes of delay possible); scheduled
-  runs only fire on the default branch; GitHub pauses schedules after ~60 days
-  of repo inactivity.
+- **Nhóm C (Ấn phẩm/Bản tin) đang hoãn** — trang `page=newsletter` dùng bảng khác (không `div.news`, không `a.doc-table__title`); cần parser riêng. Config C đã sẵn (`GROUP_SOURCE.C.parse = null` để bật lại).
+- Selector gắn với HTML hiện tại của site; nếu site đổi giao diện, cập nhật parser trong `scraper.mjs`.
