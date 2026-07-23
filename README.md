@@ -53,10 +53,10 @@ node monitor.mjs --every 30
 ## Trạng thái (`seen.json`)
 
 ```json
-{ "version": 2, "seenKeys": ["<id hoặc Số ký hiệu>"], "updatedAt": "…" }
+{ "version": 3, "seenKeys": ["<id hoặc Số ký hiệu>"], "updatedAt": "…" }
 ```
 
-`version` đổi khi schema nguồn đổi → state cũ (v1) được **seed lại im lặng**, tránh dội toàn bộ catalogue như "tin mới".
+`version` (hiện `3`) đổi khi schema nguồn/định danh đổi → state cũ (khác version) được **seed lại im lặng**, tránh dội toàn bộ catalogue như "tin mới".
 
 ## Deploy
 
