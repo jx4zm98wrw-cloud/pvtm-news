@@ -16,7 +16,7 @@ import { getAllItems, forDisplay, BASE_URL } from './scraper.mjs';
 import { notifyItems } from './notify.mjs';
 
 const STATE_FILE = new URL('./seen.json', import.meta.url);
-const STATE_VERSION = 2;
+const STATE_VERSION = 3; // v3: news article-id fix changed keys → re-seed
 
 try { process.loadEnvFile(new URL('./.env', import.meta.url)); } catch { /* no .env */ }
 

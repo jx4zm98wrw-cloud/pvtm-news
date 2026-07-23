@@ -67,7 +67,10 @@ function parseNewsCards (html, groupKey, cat) {
 	$('div.news').each((_, el) => {
 		const $el = $(el);
 		const href = $el.find('.news__title a').attr('href') || $el.find('a.news__frame').attr('href');
-		const id = (href || '').match(/id=([0-9a-f-]{36})/i);
+		// Match the ARTICLE id only — browse hrefs also carry category_id=<guid>,
+		// and a bare /id=/ would match "category_id=" and collapse every card in a
+		// category to one key. Anchor on ?/& so category_id is skipped.
+		const id = (href || '').match(/[?&]id=([0-9a-f-]{36})/i);
 		if (!id) return;
 		const dateRaw = ($el.find('.news__info').text().match(/\d{1,2}\/\d{1,2}\/\d{4}/) || [])[0] || null;
 		items.push({
