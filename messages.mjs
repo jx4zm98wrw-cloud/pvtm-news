@@ -25,7 +25,7 @@ function metaText (it) {
 
 // --- Telegram: full titles in text (numbered by group) + inline number buttons.
 export function buildTelegram (items, { title } = {}) {
-	const header = `👋 <b>${escapeHtml(title || `${items.length} tin mới`)}</b>`;
+	const header = `📡 <b>PVTM Radar</b> · ${escapeHtml(title || `${items.length} tin mới`)}`;
 	const lines = [header, ''];
 	let n = 0;
 	const buttons = [];
@@ -62,6 +62,16 @@ export function buildPlainText (items) {
 		out.push('');
 	}
 	return out.join('\n').trim();
+}
+
+// Email subject: brand-forward + informative (lead headline). Recognizable in
+// the inbox at a glance: "PVTM Radar · <tin nổi bật>… (+N tin)".
+export function buildSubject (items) {
+	if (!items.length) return 'PVTM Radar';
+	const lead = items[0].isDoc && items[0].code ? `${items[0].code} — ${items[0].title}` : items[0].title;
+	const clipped = lead.length > 60 ? lead.slice(0, 59).trimEnd() + '…' : lead;
+	const more = items.length > 1 ? ` (+${items.length - 1} tin)` : '';
+	return `PVTM Radar · ${clipped}${more}`;
 }
 
 // --- Email: navy/gold newsletter. Table layout + inlined styles (Gmail/Outlook).

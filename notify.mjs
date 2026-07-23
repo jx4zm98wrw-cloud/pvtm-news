@@ -4,7 +4,7 @@
 
 import got from 'got';
 import nodemailer from 'nodemailer';
-import { buildTelegram, buildEmail, buildPlainText } from './messages.mjs';
+import { buildTelegram, buildEmail, buildPlainText, buildSubject } from './messages.mjs';
 
 // Telegram destinations:
 //  - TELEGRAM_CHAT_ID may be comma-separated (one bot -> many chats)
@@ -53,7 +53,7 @@ async function sendEmail (items, opts) {
 	await transporter.sendMail({
 		from: process.env.MAIL_FROM || SMTP_USER,
 		to: MAIL_TO,
-		subject: `🔔 ${(opts && opts.title) || `${items.length} tin mới`} — pvtm.gov.vn`,
+		subject: buildSubject(items),
 		text: buildPlainText(items),
 		html: buildEmail(items, opts)
 	});
