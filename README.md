@@ -8,7 +8,7 @@ gửi cảnh báo qua **Telegram + Email**, gom theo nhóm ưu tiên và chỉ b
 | File | Vai trò |
 |------|---------|
 | `scraper.mjs` | Lấy dữ liệu: đa nguồn theo danh mục, gắn nhóm, sắp xếp, cửa sổ thời gian |
-| `messages.mjs` | Dựng tin nhắn (thuần): Telegram nút-bấm-lai + email newsletter |
+| `messages.mjs` | Dựng tin nhắn (thuần): Telegram (số + link tiêu đề) + email newsletter; subject thương hiệu (`buildSubject`) |
 | `notify.mjs` | Gửi: Telegram (đa đích) + Email (SMTP), kích hoạt theo env |
 | `monitor.mjs` | Cảnh báo định kỳ: diff theo `seen.json`, chỉ báo tin mới |
 | `api/telegram.mjs` | Webhook Vercel: bot vào nhóm → gửi tin 7 ngày qua |
@@ -38,8 +38,9 @@ node monitor.mjs --every 30
 
 - **Cảnh báo định kỳ** (`monitor.mjs`): seen-diff theo `key` → mỗi tin gửi **đúng 1 lần**, gom theo nhóm.
 - **Lời chào** (`api/telegram.mjs`, khi bot vào nhóm): tin trong **30 ngày gần nhất, tối đa 8** (chỉnh qua env `WELCOME_DAYS`/`WELCOME_CAP`); nếu trống → tin gần nhất + ghi chú. Không dùng "số cố định" nên tin cũ không bị kéo vào.
-- **Telegram:** tiêu đề đầy đủ trong chữ (đánh số theo nhóm) + hàng nút số `1️⃣…` để mở + `Tất cả tin ↗`; văn bản D có nút `⬇`.
-- **Email:** newsletter navy/vàng đồng, gom theo nhóm, tóm tắt cho A/B, nút "Tải văn bản" cho D.
+- **Telegram:** header `📡 PVTM Radar · …`; mỗi tin **đánh số + tiêu đề là link** (chạm thẳng tiêu đề để mở — không có nút số phải đếm); một nút `Tất cả tin ↗`; văn bản D có `⬇`.
+- **Email:** subject `PVTM Radar · <tin nổi bật>… (+N tin)` (thương hiệu dẫn đầu + cắt theo ranh giới từ, hàm `buildSubject`); thân email newsletter navy/vàng đồng, gom theo nhóm, tóm tắt cho A/B, nút "Tải văn bản" cho D.
+- **Nhận diện:** cả hai kênh mở đầu bằng thương hiệu **PVTM Radar** (📡 ở Telegram, măng-sét ở email).
 
 ## Cấu hình (env — xem `.env.example`)
 
