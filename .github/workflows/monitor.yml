@@ -1,13 +1,17 @@
 name: pvtm news monitor
 
-# Runs on a schedule (and on-demand). GitHub cron is best-effort — runs may be
-# delayed a few minutes, especially near the top of the hour. Scheduled
-# workflows only run on the default branch, and GitHub pauses them after ~60
-# days of repo inactivity.
+# PRIMARY trigger is an EXTERNAL cron (cron-job.org) that calls
+# workflow_dispatch every 30 min — GitHub's own `schedule` is best-effort and
+# in practice drops most ticks under load (observed gaps up to ~3h), so it is
+# kept only as a backup. Both run identically. Scheduled workflows only run on
+# the default branch, and GitHub pauses `schedule` after ~60 days of repo
+# inactivity (the external cron is not affected by that).
+#   External call: POST /repos/<owner>/<repo>/actions/workflows/monitor.yml/dispatches
+#   body {"ref":"main"}  — see README "Deploy".
 on:
   schedule:
-    - cron: '*/30 * * * *'   # every 30 minutes
-  workflow_dispatch: {}        # lets you trigger a run manually from the Actions tab
+    - cron: '*/30 * * * *'   # backup only — external cron is the reliable path
+  workflow_dispatch: {}        # PRIMARY: external cron + manual runs from the Actions tab
 
 # Don't let a manual run and a scheduled run clash over the state cache.
 concurrency:

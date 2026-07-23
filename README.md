@@ -61,6 +61,22 @@ node monitor.mjs --every 30
 ## Deploy
 
 - **Cảnh báo định kỳ:** GitHub Actions (`.github/workflows/monitor.yml`), `seen.json` trong Actions cache.
+  - **Kích hoạt:** dùng **cron ngoài** (cron-job.org) gọi `workflow_dispatch` mỗi 30 phút.
+    Lịch `schedule` gắn trong workflow **chỉ là dự phòng** — GitHub chạy `schedule`
+    theo best-effort và trên thực tế bỏ phần lớn nhịp khi tải cao (quan sát được khoảng
+    trống tới ~3h). Vì `monitor` dùng seen-diff nên nhịp rơi chỉ làm **trễ**, không **mất** tin.
+  - **Thiết lập cron ngoài** (một lần):
+    1. Tạo **fine-grained PAT** (github.com → Settings → Developer settings → Fine-grained
+       tokens): chỉ repo `pvtm-news`, quyền **Actions: Read and write**, hạn dài (vd 1 năm).
+    2. cron-job.org → tạo job:
+       - URL: `https://api.github.com/repos/jx4zm98wrw-cloud/pvtm-news/actions/workflows/monitor.yml/dispatches`
+       - Method `POST`; Schedule `*/30 * * * *`
+       - Headers: `Authorization: Bearer <PAT>`, `Accept: application/vnd.github+json`,
+         `Content-Type: application/json`, `User-Agent: pvtm-cron`
+       - Body: `{"ref":"main"}`
+    3. Kỳ vọng HTTP **204 No Content** = đã kích. Xác minh: `gh run list` thấy các run
+       `event=workflow_dispatch` cách nhau đều ~30 phút.
+    - PAT chỉ nằm ở cron-job.org, **không** commit vào repo.
 - **Webhook lời chào:** Vercel (`api/telegram.mjs`), stateless. Đăng ký: `node set-webhook.mjs https://<app>.vercel.app/api/telegram`.
 - **Nhóm nhận cảnh báo định kỳ:** lời chào tự vào nhóm, nhưng cảnh báo tin mới (monitor)
   chỉ gửi tới `TELEGRAM_CHAT_ID`. Để nhóm cũng nhận: gõ **`/id`** trong nhóm → bot trả
