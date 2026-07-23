@@ -24,14 +24,16 @@ function metaText (it) {
 export function buildTelegram (items, { title } = {}) {
 	const header = `📡 <b>PVTM Radar</b> · ${escapeHtml(title || `${items.length} tin mới`)}`;
 	const lines = [header, ''];
+	let n = 0;
 	for (const sec of sections(items)) {
 		lines.push(`${sec.emoji} <b>${escapeHtml(sec.label)}</b>`);
 		for (const it of sec.items) {
+			n++;
 			const head = it.isDoc && it.code ? `${escapeHtml(it.code)} — ` : '';
 			const dl = it.isDoc ? ' ⬇' : '';
 			const meta = metaText(it);
-			// Title IS the link — tap the headline directly, no numbers to match.
-			lines.push(`• <a href="${it.url}">${head}${escapeHtml(it.title)}</a>${dl}${meta ? ` <i>(${escapeHtml(meta)})</i>` : ''}`);
+			// Numbered for reference; the title itself is the link (tap it directly).
+			lines.push(`<b>${n}.</b> <a href="${it.url}">${head}${escapeHtml(it.title)}</a>${dl}${meta ? ` <i>(${escapeHtml(meta)})</i>` : ''}`);
 		}
 		lines.push('');
 	}
@@ -59,12 +61,19 @@ export function buildPlainText (items) {
 
 // Email subject: brand-forward + informative (lead headline). Recognizable in
 // the inbox at a glance: "PVTM Radar · <tin nổi bật>… (+N tin)".
+// Clip to <= n chars at a WORD boundary (avoid cutting mid-word), then add "…".
+function clipWords (s, n) {
+	if (s.length <= n) return s;
+	const cut = s.slice(0, n);
+	const sp = cut.lastIndexOf(' ');
+	return (sp > n * 0.6 ? cut.slice(0, sp) : cut).trimEnd() + '…';
+}
+
 export function buildSubject (items) {
 	if (!items.length) return 'PVTM Radar';
 	const lead = items[0].isDoc && items[0].code ? `${items[0].code} — ${items[0].title}` : items[0].title;
-	const clipped = lead.length > 60 ? lead.slice(0, 59).trimEnd() + '…' : lead;
 	const more = items.length > 1 ? ` (+${items.length - 1} tin)` : '';
-	return `PVTM Radar · ${clipped}${more}`;
+	return `PVTM Radar · ${clipWords(lead, 60)}${more}`;
 }
 
 // --- Email: navy/gold newsletter. Table layout + inlined styles (Gmail/Outlook).
