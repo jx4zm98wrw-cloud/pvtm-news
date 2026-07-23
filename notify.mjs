@@ -50,14 +50,19 @@ async function sendEmail (items, opts) {
 		secure: process.env.SMTP_SECURE === 'true',
 		auth: { user: SMTP_USER, pass: SMTP_PASS }
 	});
-	await transporter.sendMail({
+	const mail = {
 		from: process.env.MAIL_FROM || SMTP_USER,
 		to: MAIL_TO,
 		subject: buildSubject(items),
 		text: buildPlainText(items),
 		html: buildEmail(items, opts)
-	});
-	return { channel: 'email', sent: items.length };
+	};
+	// Hidden distribution list — recipients don't see each other (comma-separated).
+	if (process.env.MAIL_BCC) mail.bcc = process.env.MAIL_BCC;
+	await transporter.sendMail(mail);
+
+	const bcc = process.env.MAIL_BCC ? process.env.MAIL_BCC.split(',').filter((s) => s.trim()).length : 0;
+	return { channel: 'email', sent: bcc ? `${items.length} (to 1 + bcc ${bcc})` : items.length };
 }
 
 // Send grouped items to every configured channel. opts: { title, dateStr, days }.

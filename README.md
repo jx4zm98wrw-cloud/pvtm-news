@@ -47,7 +47,7 @@ node monitor.mjs --every 30
 | Kênh | Biến |
 |------|------|
 | Telegram | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` (phẩy = nhiều chat; `_2`/`_3` = thêm bot) |
-| Email | `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASS`, `MAIL_TO`, `MAIL_FROM` |
+| Email | `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASS`, `MAIL_TO`, `MAIL_FROM`, `MAIL_BCC` (danh sách ẩn, phẩy) |
 | Webhook | `WEBHOOK_SECRET` (khớp giữa Vercel ↔ setWebhook) |
 
 ## Trạng thái (`seen.json`)
