@@ -37,7 +37,7 @@ node monitor.mjs --every 30
 ## Hai loại tin nhắn
 
 - **Cảnh báo định kỳ** (`monitor.mjs`): seen-diff theo `key` → mỗi tin gửi **đúng 1 lần**, gom theo nhóm.
-- **Lời chào** (`api/telegram.mjs`, khi bot vào nhóm): tin trong **7 ngày gần nhất, tối đa 8**; nếu trống → tin gần nhất + ghi chú. Không dùng "số cố định" nên tin cũ không bị kéo vào.
+- **Lời chào** (`api/telegram.mjs`, khi bot vào nhóm): tin trong **30 ngày gần nhất, tối đa 8** (chỉnh qua env `WELCOME_DAYS`/`WELCOME_CAP`); nếu trống → tin gần nhất + ghi chú. Không dùng "số cố định" nên tin cũ không bị kéo vào.
 - **Telegram:** tiêu đề đầy đủ trong chữ (đánh số theo nhóm) + hàng nút số `1️⃣…` để mở + `Tất cả tin ↗`; văn bản D có nút `⬇`.
 - **Email:** newsletter navy/vàng đồng, gom theo nhóm, tóm tắt cho A/B, nút "Tải văn bản" cho D.
 

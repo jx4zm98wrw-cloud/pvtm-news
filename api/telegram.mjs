@@ -7,8 +7,8 @@ import got from 'got';
 import { getAllItems, recentWindow, forDisplay } from '../scraper.mjs';
 import { buildTelegram } from '../messages.mjs';
 
-const WINDOW_DAYS = 7;
-const WINDOW_CAP = 8;
+const WINDOW_DAYS = Number(process.env.WELCOME_DAYS) || 30; // override via Vercel env
+const WINDOW_CAP = Number(process.env.WELCOME_CAP) || 8;
 
 function botWasAdded (update) {
 	const mcm = update.my_chat_member;
