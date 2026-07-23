@@ -38,7 +38,27 @@ export default async function handler (req, res) {
 		return res.status(401).send('unauthorized');
 	}
 
-	const chatId = botWasAdded(req.body || {});
+	const update = req.body || {};
+
+	// /id command — bot replies with this chat's id, to add to TELEGRAM_CHAT_ID
+	// so the group also receives periodic new-news alerts (not just the welcome).
+	const text = (update.message?.text || '').trim();
+	if (/^\/id(@\w+)?\b/i.test(text)) {
+		const id = update.message.chat.id;
+		try {
+			await got.post(`https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
+				json: {
+					chat_id: id,
+					text: `🆔 Chat ID: <code>${id}</code>\nThêm ID này vào <b>TELEGRAM_CHAT_ID</b> để nhóm nhận cảnh báo tin mới.`,
+					parse_mode: 'HTML'
+				},
+				timeout: { request: 15000 }
+			});
+		} catch (err) { console.error('/id failed:', err.message); }
+		return res.status(200).send('ok');
+	}
+
+	const chatId = botWasAdded(update);
 	if (!chatId) return res.status(200).send('ignored');
 
 	try {
