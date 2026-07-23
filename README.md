@@ -78,6 +78,29 @@ your `chat id`.
 { "seenIds": ["9d8c469f-...", "a4f7c914-..."], "updatedAt": "2026-07-22T15:44:06.000Z" }
 ```
 
+## Auto-welcome new chats (Vercel webhook)
+
+`api/telegram.mjs` is a Vercel serverless function. When the bot is **added to a
+group or channel**, Telegram POSTs a `my_chat_member` event to it and the bot
+replies with the newest 5 articles. It is **stateless** (fetches live, no cache).
+
+Deploy:
+1. Import this repo into Vercel (free tier is fine — the function only runs when
+   the bot is added, so it stays well within limits).
+2. Set env vars in the Vercel project: `TELEGRAM_BOT_TOKEN`, `WEBHOOK_SECRET`.
+3. Register the webhook once (locally, with the same vars in `.env`):
+   ```bash
+   node set-webhook.mjs https://<your-app>.vercel.app/api/telegram
+   ```
+4. Add the bot to a group/channel (as **admin** for channels) — it welcomes it.
+
+Notes:
+- **Webhook and `getUpdates` are mutually exclusive.** While the webhook is set,
+  `get-chat-id.mjs` won't work; run `node set-webhook.mjs --delete` to use it,
+  then re-register. Check status with `node set-webhook.mjs --info`.
+- The scheduled news push (GitHub Actions) is unaffected — sending works
+  regardless of webhook mode.
+
 ## Output shape (`news.json`)
 
 ```json
