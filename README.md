@@ -61,10 +61,12 @@ node monitor.mjs --every 30
 ## Deploy
 
 - **Cảnh báo định kỳ:** GitHub Actions (`.github/workflows/monitor.yml`), `seen.json` trong Actions cache.
-  - **Kích hoạt:** dùng **cron ngoài** (cron-job.org) gọi `workflow_dispatch` mỗi 30 phút.
-    Lịch `schedule` gắn trong workflow **chỉ là dự phòng** — GitHub chạy `schedule`
-    theo best-effort và trên thực tế bỏ phần lớn nhịp khi tải cao (quan sát được khoảng
-    trống tới ~3h). Vì `monitor` dùng seen-diff nên nhịp rơi chỉ làm **trễ**, không **mất** tin.
+  - **Kích hoạt:** **chỉ** bằng **cron ngoài** (cron-job.org) gọi `workflow_dispatch` mỗi 30 phút.
+    Lịch `schedule` trong workflow đã **gỡ bỏ** — GitHub chạy `schedule` best-effort, bỏ phần
+    lớn nhịp khi tải cao (quan sát khoảng trống tới ~3h). Vì `monitor` dùng seen-diff nên nhịp
+    rơi chỉ làm **trễ**, không **mất** tin.
+    ⚠️ **Không còn dự phòng:** nếu cron ngoài ngừng, không gì tự kích workflow. Muốn khôi phục
+    lưới an toàn → thêm lại khối `schedule:` vào `on:` trong `monitor.yml`.
   - **Thiết lập cron ngoài** (một lần):
     1. Tạo **fine-grained PAT** (github.com → Settings → Developer settings → Fine-grained
        tokens): chỉ repo `pvtm-news`, quyền **Actions: Read and write**, hạn dài (vd 1 năm).
