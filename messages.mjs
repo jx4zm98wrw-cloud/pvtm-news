@@ -4,9 +4,6 @@
 
 import { GROUPS, BASE_URL } from './scraper.mjs';
 
-const KEYCAP = ['1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣', '6️⃣', '7️⃣', '8️⃣', '9️⃣', '🔟'];
-const numEmoji = (n) => KEYCAP[n - 1] || `#${n}`;
-
 function escapeHtml (s = '') {
 	return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
@@ -27,26 +24,22 @@ function metaText (it) {
 export function buildTelegram (items, { title } = {}) {
 	const header = `📡 <b>PVTM Radar</b> · ${escapeHtml(title || `${items.length} tin mới`)}`;
 	const lines = [header, ''];
-	let n = 0;
-	const buttons = [];
 	for (const sec of sections(items)) {
 		lines.push(`${sec.emoji} <b>${escapeHtml(sec.label)}</b>`);
 		for (const it of sec.items) {
-			n++;
 			const head = it.isDoc && it.code ? `${escapeHtml(it.code)} — ` : '';
+			const dl = it.isDoc ? ' ⬇' : '';
 			const meta = metaText(it);
-			lines.push(`<b>${n}.</b> ${head}${escapeHtml(it.title)}${meta ? ` <i>(${escapeHtml(meta)})</i>` : ''}`);
-			buttons.push({ text: numEmoji(n) + (it.isDoc ? ' ⬇' : ''), url: it.url });
+			// Title IS the link — tap the headline directly, no numbers to match.
+			lines.push(`• <a href="${it.url}">${head}${escapeHtml(it.title)}</a>${dl}${meta ? ` <i>(${escapeHtml(meta)})</i>` : ''}`);
 		}
 		lines.push('');
 	}
 
-	// Chunk number buttons 5 per row, then a full-width "Tất cả" row.
-	const rows = [];
-	for (let i = 0; i < buttons.length; i += 5) rows.push(buttons.slice(i, i + 5));
-	rows.push([{ text: 'Tất cả tin ↗', url: BASE_URL }]);
-
-	return { text: lines.join('\n').trim(), reply_markup: { inline_keyboard: rows } };
+	return {
+		text: lines.join('\n').trim(),
+		reply_markup: { inline_keyboard: [[{ text: 'Tất cả tin ↗', url: BASE_URL }]] }
+	};
 }
 
 // Plain text (email fallback + logs).
