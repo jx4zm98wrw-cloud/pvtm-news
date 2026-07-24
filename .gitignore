@@ -2,3 +2,4 @@ node_modules/
 .env
 seen.json
 news.json
+.DS_Store
