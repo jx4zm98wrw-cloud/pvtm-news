@@ -48,13 +48,13 @@ const UA = {
 	timeout: { request: 20000 }
 };
 
-export function labelOf (key) {
+function labelOf (key) {
 	const g = GROUPS.find((x) => x.key === key);
 	return g ? `${g.emoji} ${g.label}` : key;
 }
 
 // DD/MM/YYYY -> YYYY-MM-DD (sortable). null if absent (e.g. WTO agreements).
-export function toISODate (raw) {
+function toISODate (raw) {
 	const m = (raw || '').match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
 	if (!m) return null;
 	return `${m[3]}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}`;
@@ -173,7 +173,7 @@ export async function getAllItems () {
 }
 
 // Sort by date, newest first; undated sink to the bottom.
-export function byNewest (items) {
+function byNewest (items) {
 	return [...items].sort((a, b) => {
 		if (a.dateISO && b.dateISO) return b.dateISO.localeCompare(a.dateISO);
 		if (a.dateISO) return -1;
