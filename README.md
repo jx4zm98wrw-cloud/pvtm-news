@@ -61,6 +61,10 @@ node monitor.mjs --every 30
 ## Deploy
 
 - **Cảnh báo định kỳ:** GitHub Actions (`.github/workflows/monitor.yml`), `seen.json` trong Actions cache.
+  - **Repo để public** → Actions **miễn phí, không giới hạn phút**. (Private repo tính phút và có
+    thể bị chặn nếu thanh toán lỗi / chạm spending limit — đó là lý do chuyển sang public.) Secrets
+    vẫn **riêng tư** kể cả khi repo public; workflow chỉ `workflow_dispatch` nên PR từ fork không
+    lấy được secret. Muốn về private: sửa Billing trên GitHub rồi `gh repo edit --visibility private`.
   - **Kích hoạt:** **chỉ** bằng **cron ngoài** (cron-job.org) gọi `workflow_dispatch` mỗi 30 phút.
     Lịch `schedule` trong workflow đã **gỡ bỏ** — GitHub chạy `schedule` best-effort, bỏ phần
     lớn nhịp khi tải cao (quan sát khoảng trống tới ~3h). Vì `monitor` dùng seen-diff nên nhịp
@@ -88,4 +92,5 @@ node monitor.mjs --every 30
 ## Việc còn lại / hạn chế
 
 - Nhóm C giới hạn **25 bản tin gần nhất/danh mục** (kho lưu trữ nhiều năm; chỉ tin gần đây mới có ý nghĩa cảnh báo).
+- **Nợ kỹ thuật (không khẩn):** `actions/checkout@v4`, `setup-node@v4`, `cache@v4` chạy trên Node 20 (đã deprecated, bị ép sang Node 24). Nâng lên `@v5` khi tiện.
 - Selector gắn với HTML hiện tại của site; nếu site đổi giao diện, cập nhật parser trong `scraper.mjs`.
