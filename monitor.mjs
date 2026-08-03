@@ -25,10 +25,13 @@ try { process.loadEnvFile(new URL('./.env', import.meta.url)); } catch { /* no .
 
 const now = () => new Date().toISOString().replace('T', ' ').slice(0, 19);
 const log = (...a) => console.log(`[${now()}]`, ...a);
-const todayVN = () => {
-	const d = new Date();
-	return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
-};
+// Header date shown to readers, pinned to Vietnam time. MUST use an explicit
+// timeZone: GitHub Actions runners are UTC, so a plain `new Date().getDate()`
+// would print the previous day during 00:00–07:00 VN (17:00–24:00 UTC).
+// Display-only — never used for filtering or seen-diff.
+const todayVN = () => new Intl.DateTimeFormat('en-GB', {
+	timeZone: 'Asia/Ho_Chi_Minh', day: '2-digit', month: '2-digit', year: 'numeric'
+}).format(new Date());
 
 // Normalize a title for change comparison. The scraper already collapses
 // whitespace; lowercasing ignores trivial case-only edits.

@@ -41,6 +41,7 @@ node monitor.mjs --every 30
 - **Telegram:** header `📡 PVTM Radar · …`; mỗi tin **đánh số + tiêu đề là link** (chạm thẳng tiêu đề để mở — không có nút số phải đếm); một nút `Tất cả tin ↗`; văn bản D có `⬇`.
 - **Email:** subject `PVTM Radar · <tin nổi bật>… (+N tin)` (thương hiệu dẫn đầu + cắt theo ranh giới từ, hàm `buildSubject`); thân email newsletter navy/vàng đồng, gom theo nhóm, tóm tắt cho A/B, nút "Tải văn bản" cho D.
 - **Nhận diện:** cả hai kênh mở đầu bằng thương hiệu **PVTM Radar** (📡 ở Telegram, măng-sét ở email).
+- **Ngày trên tiêu đề** (`todayVN`) luôn tính theo **giờ Việt Nam** (`Asia/Ho_Chi_Minh`), không theo giờ runner (GitHub Actions chạy UTC). Chỉ để **hiển thị** — không dùng để lọc hay so khớp `seen`.
 
 ## Cấu hình (env — xem `.env.example`)
 
