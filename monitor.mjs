@@ -1,9 +1,12 @@
 #!/usr/bin/env node
 // Periodic monitor — detects genuinely new items across all groups (A/B/C/D)
 // and sends a grouped alert. "New" = key (news id / Số ký hiệu) not seen before.
+// Also re-alerts an already-seen key whose TITLE changed on the site (e.g. an
+// article cloned-then-renamed that first appeared under a stale title), tagged
+// as an update so the corrected headline still reaches subscribers.
 //
-// State: seen.json { version, seenKeys, updatedAt }. The source set changed in
-// v2 (multi-category + legal docs), so a v1/absent state is re-seeded SILENTLY
+// State: seen.json { version, seen: {key: title}, updatedAt }. The schema/source
+// set changed across versions, so a mismatched/absent state is re-seeded SILENTLY
 // to avoid dumping the whole catalogue as "new" on the first upgraded run.
 //
 // Usage:
@@ -16,7 +19,7 @@ import { getAllItems, forDisplay, BASE_URL } from './scraper.mjs';
 import { notifyItems } from './notify.mjs';
 
 const STATE_FILE = new URL('./seen.json', import.meta.url);
-const STATE_VERSION = 3; // v3: news article-id fix changed keys → re-seed
+const STATE_VERSION = 4; // v4: store title per key → detect site-side title changes (re-seed)
 
 try { process.loadEnvFile(new URL('./.env', import.meta.url)); } catch { /* no .env */ }
 
@@ -27,49 +30,70 @@ const todayVN = () => {
 	return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
 };
 
+// Normalize a title for change comparison. The scraper already collapses
+// whitespace; lowercasing ignores trivial case-only edits.
+const titleKey = (t) => (t || '').toLowerCase().replace(/\s+/g, ' ').trim();
+
+// State is a Map<key, lastSeenTitle>, persisted as a plain object under `seen`.
 async function loadSeen () {
 	try {
 		const raw = JSON.parse(await readFile(STATE_FILE, 'utf8'));
-		if (raw.version !== STATE_VERSION) return { keys: new Set(), fresh: true }; // schema changed
-		return { keys: new Set(raw.seenKeys || []), fresh: false };
+		if (raw.version !== STATE_VERSION) return { seen: new Map(), fresh: true }; // schema changed
+		return { seen: new Map(Object.entries(raw.seen || {})), fresh: false };
 	} catch {
-		return { keys: new Set(), fresh: true };
+		return { seen: new Map(), fresh: true };
 	}
 }
 
-async function saveSeen (keySet) {
+async function saveSeen (seen) {
 	await writeFile(STATE_FILE, JSON.stringify({
-		version: STATE_VERSION, seenKeys: [...keySet], updatedAt: new Date().toISOString()
+		version: STATE_VERSION, seen: Object.fromEntries(seen), updatedAt: new Date().toISOString()
 	}, null, 2));
 }
 
 async function checkOnce () {
-	const { keys: seen, fresh } = await loadSeen();
+	const { seen, fresh } = await loadSeen();
 	const items = (await getAllItems()).filter((it) => it.key);
 
 	if (fresh) {
-		items.forEach((it) => seen.add(it.key));
+		items.forEach((it) => seen.set(it.key, it.title));
 		await saveSeen(seen);
 		log(`seeded ${seen.size} items (first run / schema v${STATE_VERSION} — no alert sent)`);
 		return [];
 	}
 
-	const newItems = items.filter((it) => !seen.has(it.key));
-	if (newItems.length === 0) {
+	// New    = key never seen before.
+	// Updated = key already seen but the site changed its title since — marked so
+	//           the message flags it and a repeat headline isn't just confusing.
+	const newItems = [];
+	const updatedItems = [];
+	for (const it of items) {
+		if (!seen.has(it.key)) { newItems.push(it); continue; }
+		if (titleKey(seen.get(it.key)) !== titleKey(it.title)) { it.updated = true; updatedItems.push(it); }
+	}
+	const alertItems = [...newItems, ...updatedItems];
+
+	if (alertItems.length === 0) {
 		log(`no new items (${items.length} scanned, all seen)`);
 		return [];
 	}
 
-	const display = forDisplay(newItems);
-	log(`${newItems.length} NEW item(s):`);
-	display.forEach((it) => log(`  • [${it.group}] ${it.date || '??'} ${it.title.slice(0, 60)}`));
+	const display = forDisplay(alertItems);
+	log(`${newItems.length} new + ${updatedItems.length} retitled item(s):`);
+	// key + url in the log make a "why the duplicate / title mismatch?" case
+	// diagnosable straight from the Actions run logs (no live-site re-probing).
+	display.forEach((it) => log(`  • [${it.group}]${it.updated ? ' (cập nhật)' : ''} ${it.date || '??'} ${it.title.slice(0, 60)} · key=${it.key} · ${it.url}`));
 
+	const parts = [];
+	if (newItems.length) parts.push(`${newItems.length} tin mới`);
+	if (updatedItems.length) parts.push(`${updatedItems.length} cập nhật`);
 	const results = await notifyItems(display, {
-		title: `${newItems.length} tin mới`, dateStr: todayVN(), days: 7
+		title: parts.join(' + '), dateStr: todayVN(), days: 7
 	});
 	results.forEach((r) => log(`  notify ${r.channel}:`, r.sent ? `sent ${r.sent}` : (r.skipped || r.error)));
 
-	newItems.forEach((it) => seen.add(it.key));
+	// Record the current title for every alerted item (new + corrected).
+	alertItems.forEach((it) => seen.set(it.key, it.title));
 	await saveSeen(seen);
 	return display;
 }

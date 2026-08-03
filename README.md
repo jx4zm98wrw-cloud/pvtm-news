@@ -36,7 +36,7 @@ node monitor.mjs --every 30
 
 ## Hai loại tin nhắn
 
-- **Cảnh báo định kỳ** (`monitor.mjs`): seen-diff theo `key` → mỗi tin gửi **đúng 1 lần**, gom theo nhóm.
+- **Cảnh báo định kỳ** (`monitor.mjs`): seen-diff theo `key` → mỗi tin gửi **đúng 1 lần**; nếu site **đổi tiêu đề** của cùng `key` thì gửi lại bản **🔄 cập nhật**. Gom theo nhóm.
 - **Lời chào** (`api/telegram.mjs`, khi bot vào nhóm): tin trong **30 ngày gần nhất, tối đa 8** (chỉnh qua env `WELCOME_DAYS`/`WELCOME_CAP`); nếu trống → tin gần nhất + ghi chú. Không dùng "số cố định" nên tin cũ không bị kéo vào.
 - **Telegram:** header `📡 PVTM Radar · …`; mỗi tin **đánh số + tiêu đề là link** (chạm thẳng tiêu đề để mở — không có nút số phải đếm); một nút `Tất cả tin ↗`; văn bản D có `⬇`.
 - **Email:** subject `PVTM Radar · <tin nổi bật>… (+N tin)` (thương hiệu dẫn đầu + cắt theo ranh giới từ, hàm `buildSubject`); thân email newsletter navy/vàng đồng, gom theo nhóm, tóm tắt cho A/B, nút "Tải văn bản" cho D.
@@ -53,10 +53,10 @@ node monitor.mjs --every 30
 ## Trạng thái (`seen.json`)
 
 ```json
-{ "version": 3, "seenKeys": ["<id hoặc Số ký hiệu>"], "updatedAt": "…" }
+{ "version": 4, "seen": { "<id hoặc Số ký hiệu>": "<tiêu đề đã thấy>" }, "updatedAt": "…" }
 ```
 
-`version` (hiện `3`) đổi khi schema nguồn/định danh đổi → state cũ (khác version) được **seed lại im lặng**, tránh dội toàn bộ catalogue như "tin mới".
+`version` (hiện `4`) đổi khi schema đổi → state cũ (khác version) được **seed lại im lặng**, tránh dội toàn bộ catalogue như "tin mới". Từ **v4** lưu **tiêu đề theo từng key**: nếu site **đổi tiêu đề** của một tin đã thấy (vd bài clone-rồi-đổi-tên, ban đầu hiện dưới tiêu đề tạm), monitor gửi lại một cảnh báo **🔄 cập nhật** với tiêu đề mới.
 
 ## Deploy
 
@@ -92,5 +92,9 @@ node monitor.mjs --every 30
 ## Việc còn lại / hạn chế
 
 - Nhóm C giới hạn **25 bản tin gần nhất/danh mục** (kho lưu trữ nhiều năm; chỉ tin gần đây mới có ý nghĩa cảnh báo).
+- **Đổi tiêu đề & cảnh báo trông như trùng:** khử trùng lặp theo **`key` = article-id**, *cố ý* không theo tiêu đề.
+  - **Cùng `key`, đổi tiêu đề** (bài clone-rồi-đổi-tên, ban đầu mang tiêu đề tạm) → gửi lại bản **🔄 cập nhật** với tiêu đề đúng (từ v4). *Ca đã gặp 31/07/2026: một bài AD24 xuất hiện dưới tiêu đề AD16 rồi được site đổi tên.*
+  - **Hai `key` khác nhau, trùng tiêu đề** (đăng lại dưới id mới, hoặc đăng chéo nhiều danh mục) → vẫn gửi 2 lần: tiêu đề giống, **URL/nội dung khác**. False-positive hiếm và **an toàn hơn** khử theo tiêu đề (vốn có thể **bỏ sót** hai tin khác nhau tình cờ trùng tiêu đề).
+  - Log của monitor in kèm `key` + `url` để soi lại từ Actions logs.
 - **Nợ kỹ thuật (không khẩn):** `actions/checkout@v4`, `setup-node@v4`, `cache@v4` chạy trên Node 20 (đã deprecated, bị ép sang Node 24). Nâng lên `@v5` khi tiện.
 - Selector gắn với HTML hiện tại của site; nếu site đổi giao diện, cập nhật parser trong `scraper.mjs`.

@@ -33,7 +33,9 @@ export function buildTelegram (items, { title } = {}) {
 			const dl = it.isDoc ? ' ⬇' : '';
 			const meta = metaText(it);
 			// Numbered for reference; the title itself is the link (tap it directly).
-			lines.push(`<b>${n}.</b> <a href="${it.url}">${head}${escapeHtml(it.title)}</a>${dl}${meta ? ` <i>(${escapeHtml(meta)})</i>` : ''}`);
+			// 🔄 = the site changed this article's title since we last alerted it.
+			const upd = it.updated ? '🔄 ' : '';
+			lines.push(`<b>${n}.</b> ${upd}<a href="${it.url}">${head}${escapeHtml(it.title)}</a>${dl}${meta ? ` <i>(${escapeHtml(meta)})</i>` : ''}`);
 		}
 		lines.push('');
 	}
@@ -52,7 +54,7 @@ export function buildPlainText (items) {
 		for (const it of sec.items) {
 			const head = it.isDoc && it.code ? `${it.code} — ` : '';
 			const meta = metaText(it);
-			out.push(`• ${head}${it.title}${meta ? ` (${meta})` : ''}\n  ${it.url}`);
+			out.push(`• ${it.updated ? '🔄 ' : ''}${head}${it.title}${meta ? ` (${meta})` : ''}\n  ${it.url}`);
 		}
 		out.push('');
 	}
@@ -106,7 +108,7 @@ function emailItemRow (it) {
 <td valign="top" width="50" style="padding-right:13px;"><div style="width:38px;height:38px;border-radius:9px;background:${iconBg};text-align:center;line-height:38px;font-size:18px;">${emoji}</div></td>
 <td valign="top">
 <div style="margin-bottom:3px;">${emailBadge(it)} <span style="font-size:11.5px;color:${C.muted};">· ${it.date || '—'}</span></div>
-<a href="${it.url}" style="font-size:14px;font-weight:500;color:${C.ink};text-decoration:none;line-height:1.45;">${escapeHtml(it.title)}</a>${dl}${summary}
+<a href="${it.url}" style="font-size:14px;font-weight:500;color:${C.ink};text-decoration:none;line-height:1.45;">${it.updated ? '🔄 ' : ''}${escapeHtml(it.title)}</a>${dl}${summary}
 </td></tr></table></td></tr>`;
 }
 
