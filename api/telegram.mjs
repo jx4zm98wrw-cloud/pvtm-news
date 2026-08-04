@@ -33,8 +33,16 @@ async function sendWelcome (chatId, items, fellBack) {
 export default async function handler (req, res) {
 	if (req.method !== 'POST') return res.status(200).send('ok');
 
+	// Fail closed: authenticate every request against WEBHOOK_SECRET. If the
+	// secret isn't configured we can't verify the caller, so reject rather than
+	// leave this public URL open to anyone (the old `secret && …` check silently
+	// accepted all requests when the env var was missing).
+	// NOTE: requires WEBHOOK_SECRET in the Vercel env AND that the webhook was
+	// registered with the same secret_token (see set-webhook.mjs), so Telegram
+	// sends the matching `x-telegram-bot-api-secret-token` header.
 	const secret = process.env.WEBHOOK_SECRET;
-	if (secret && req.headers['x-telegram-bot-api-secret-token'] !== secret) {
+	if (!secret || req.headers['x-telegram-bot-api-secret-token'] !== secret) {
+		if (!secret) console.error('WEBHOOK_SECRET not configured — rejecting request');
 		return res.status(401).send('unauthorized');
 	}
 

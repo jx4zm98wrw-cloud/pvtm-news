@@ -35,6 +35,17 @@ async function sendTelegram (items, opts) {
 			})
 		)
 	);
+	// Surface WHY a target failed so a partial delivery isn't silent. The repo is
+	// public → Actions logs are public, so log only Telegram's JSON error body or
+	// the network error code — NEVER the request URL (it carries the bot token)
+	// nor the chat id. Position (#1, #2 …) maps to the ordered env config.
+	results.forEach((r, i) => {
+		if (r.status === 'rejected') {
+			const e = r.reason;
+			const detail = e?.response?.body || e?.code || e?.name || 'send failed';
+			console.error(`telegram: target #${i + 1} failed:`, typeof detail === 'string' ? detail.slice(0, 200) : detail);
+		}
+	});
 	const ok = results.filter((r) => r.status === 'fulfilled').length;
 	if (ok < targets.length) return { channel: 'telegram', error: `delivered to ${ok}/${targets.length} chat(s)` };
 	return { channel: 'telegram', sent: `${items.length} item(s) → ${targets.length} chat(s)` };

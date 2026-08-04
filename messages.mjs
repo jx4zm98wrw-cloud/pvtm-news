@@ -8,6 +8,14 @@ function escapeHtml (s = '') {
 	return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
+// Escape a value placed inside a double-quoted HTML attribute (e.g. href).
+// Adds `"` on top of escapeHtml so a scraped URL containing a quote or `&`
+// can't break out of the attribute or corrupt Telegram's HTML entity parsing
+// (which rejects the whole message on malformed entities).
+function escapeAttr (s = '') {
+	return escapeHtml(s).replace(/"/g, '&quot;');
+}
+
 // Group items into ordered sections A→B→C→D (skips empty groups).
 function sections (items) {
 	return GROUPS.map((g) => ({
@@ -35,7 +43,7 @@ export function buildTelegram (items, { title } = {}) {
 			// Numbered for reference; the title itself is the link (tap it directly).
 			// 🔄 = the site changed this article's title since we last alerted it.
 			const upd = it.updated ? '🔄 ' : '';
-			lines.push(`<b>${n}.</b> ${upd}<a href="${it.url}">${head}${escapeHtml(it.title)}</a>${dl}${meta ? ` <i>(${escapeHtml(meta)})</i>` : ''}`);
+			lines.push(`<b>${n}.</b> ${upd}<a href="${escapeAttr(it.url)}">${head}${escapeHtml(it.title)}</a>${dl}${meta ? ` <i>(${escapeHtml(meta)})</i>` : ''}`);
 		}
 		lines.push('');
 	}
@@ -101,14 +109,14 @@ function emailItemRow (it) {
 		? `<p style="margin:4px 0 0;font-size:12.5px;color:${C.sub};line-height:1.5;">${escapeHtml(it.summary.slice(0, 160))}</p>`
 		: '';
 	const dl = it.isDoc
-		? `<br><a href="${it.url}" style="display:inline-block;margin-top:8px;font-size:12px;font-weight:600;color:${C.goldTx};background:${C.goldBg};padding:5px 12px;border-radius:6px;text-decoration:none;">⬇ Tải văn bản</a>`
+		? `<br><a href="${escapeAttr(it.url)}" style="display:inline-block;margin-top:8px;font-size:12px;font-weight:600;color:${C.goldTx};background:${C.goldBg};padding:5px 12px;border-radius:6px;text-decoration:none;">⬇ Tải văn bản</a>`
 		: '';
 	return `<tr><td style="padding:14px 26px;border-bottom:1px solid ${C.hair};">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
 <td valign="top" width="50" style="padding-right:13px;"><div style="width:38px;height:38px;border-radius:9px;background:${iconBg};text-align:center;line-height:38px;font-size:18px;">${emoji}</div></td>
 <td valign="top">
 <div style="margin-bottom:3px;">${emailBadge(it)} <span style="font-size:11.5px;color:${C.muted};">· ${it.date || '—'}</span></div>
-<a href="${it.url}" style="font-size:14px;font-weight:500;color:${C.ink};text-decoration:none;line-height:1.45;">${it.updated ? '🔄 ' : ''}${escapeHtml(it.title)}</a>${dl}${summary}
+<a href="${escapeAttr(it.url)}" style="font-size:14px;font-weight:500;color:${C.ink};text-decoration:none;line-height:1.45;">${it.updated ? '🔄 ' : ''}${escapeHtml(it.title)}</a>${dl}${summary}
 </td></tr></table></td></tr>`;
 }
 

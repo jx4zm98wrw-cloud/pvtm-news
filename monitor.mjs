@@ -15,6 +15,7 @@
 //   node monitor.mjs --once     # single check (for cron / GitHub Actions)
 
 import { readFile, writeFile } from 'node:fs/promises';
+import { pathToFileURL } from 'node:url';
 import { getAllItems, forDisplay, BASE_URL } from './scraper.mjs';
 import { notifyItems } from './notify.mjs';
 
@@ -36,6 +37,18 @@ const todayVN = () => new Intl.DateTimeFormat('en-GB', {
 // Normalize a title for change comparison. The scraper already collapses
 // whitespace; lowercasing ignores trivial case-only edits.
 const titleKey = (t) => (t || '').toLowerCase().replace(/\s+/g, ' ').trim();
+
+// Given the results from notifyItems(), decide whether it's safe to record the
+// alerted items as "seen". Returns true when at least one channel delivered, OR
+// when every channel was intentionally skipped (disabled via missing env —
+// retrying can't help). Returns false ONLY when a channel actively failed and
+// nothing else delivered: in that case we leave the items unseen so the next
+// cycle retries them, instead of marking them seen and losing the alert forever.
+export function shouldRecordSeen (results) {
+	const delivered = results.some((r) => r.sent);
+	const hardFailed = results.some((r) => r.error);
+	return delivered || !hardFailed;
+}
 
 // State is a Map<key, lastSeenTitle>, persisted as a plain object under `seen`.
 async function loadSeen () {
@@ -95,6 +108,16 @@ async function checkOnce () {
 	});
 	results.forEach((r) => log(`  notify ${r.channel}:`, r.sent ? `sent ${r.sent}` : (r.skipped || r.error)));
 
+	// Only advance state if delivery actually happened. If every channel failed,
+	// leave these items unseen so the next cycle retries them — otherwise a
+	// transient Telegram/SMTP outage would mark them seen and drop the alert for
+	// good. (A rare partial failure still records; notify.mjs logs which target
+	// missed so it's visible rather than silent.)
+	if (!shouldRecordSeen(results)) {
+		log('⚠ no channel delivered — leaving items unseen; will retry next cycle');
+		return display;
+	}
+
 	// Record the current title for every alerted item (new + corrected).
 	alertItems.forEach((it) => seen.set(it.key, it.title));
 	await saveSeen(seen);
@@ -122,4 +145,8 @@ async function main () {
 	process.on('SIGINT', () => { log('stopping'); process.exit(0); });
 }
 
-main();
+// Run the monitor only when invoked directly (node monitor.mjs …), not when a
+// test or other module imports this file for its exported helpers.
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+	main();
+}

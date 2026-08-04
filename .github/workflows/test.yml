@@ -1,0 +1,23 @@
+name: test
+
+# Runs the unit tests (node --test) on every push to main and every PR, so a
+# regression in the scraper parsing or message escaping is caught before it can
+# reach the live monitor. No secrets are needed — the tests are pure/offline.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+
+      - run: npm install --no-audit --no-fund
+
+      - run: npm test

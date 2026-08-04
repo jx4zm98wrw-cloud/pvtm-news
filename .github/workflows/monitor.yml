@@ -20,9 +20,9 @@ jobs:
   check:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
 
@@ -31,14 +31,15 @@ jobs:
       # Restore seen.json from the previous run, and save the updated one after.
       # The unique per-run key never hits exactly, so the post-job save always
       # writes; restore-keys loads the most recent prior cache.
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         with:
           path: seen.json
           key: pvtm-seen-${{ github.run_id }}
           restore-keys: |
             pvtm-seen-
 
-      - run: node monitor.mjs --once
+      - name: Run monitor
+        run: node monitor.mjs --once
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
@@ -54,3 +55,19 @@ jobs:
           MAIL_TO: ${{ secrets.MAIL_TO }}
           MAIL_FROM: ${{ secrets.MAIL_FROM }}
           MAIL_BCC: ${{ secrets.MAIL_BCC }}
+
+      # Dead-man's-switch: ping an external monitor (e.g. healthchecks.io) after a
+      # successful run. If runs ever stop — external cron dies, workflow breaks —
+      # the monitor stops being pinged and alerts YOU that monitoring went silent.
+      # Best-effort and optional: no-op if HEALTHCHECK_URL secret isn't set, and a
+      # failed ping never fails the job (the missing ping is itself the signal).
+      - name: Liveness ping (dead-man's-switch)
+        if: success()
+        env:
+          HC_URL: ${{ secrets.HEALTHCHECK_URL }}
+        run: |
+          if [ -n "$HC_URL" ]; then
+            curl -fsS -m 10 --retry 3 "$HC_URL" && echo "liveness pinged" || echo "liveness ping failed (non-fatal)"
+          else
+            echo "HEALTHCHECK_URL not set — skipping liveness ping"
+          fi
