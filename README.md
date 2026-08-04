@@ -58,10 +58,32 @@ npm test                  # unit test (node --test) — escaping + độ bền g
 ## Trạng thái (`seen.json`)
 
 ```json
-{ "version": 4, "seen": { "<id hoặc Số ký hiệu>": "<tiêu đề đã thấy>" }, "updatedAt": "…" }
+{
+  "version": 5,
+  "seen": {
+    "<id hoặc Số ký hiệu>": {
+      "title": "<tiêu đề đã thấy>",
+      "dateISO": "2026-07-31",
+      "group": "C",
+      "firstSeenAt": "2026-08-03T04:00:00.000Z"
+    }
+  },
+  "updatedAt": "…"
+}
 ```
 
-`version` (hiện `4`) đổi khi schema đổi → state cũ (khác version) được **seed lại im lặng**, tránh dội toàn bộ catalogue như "tin mới". Từ **v4** lưu **tiêu đề theo từng key**: nếu site **đổi tiêu đề** của một tin đã thấy (vd bài clone-rồi-đổi-tên, ban đầu hiện dưới tiêu đề tạm), monitor gửi lại một cảnh báo **🔄 cập nhật** với tiêu đề mới.
+`version` (hiện `5`) đổi khi schema đổi → state cũ (khác version) được **seed lại im lặng**, tránh dội toàn bộ catalogue như "tin mới".
+- **`title`** (từ v4): nếu site **đổi tiêu đề** của một tin đã thấy (vd bài clone-rồi-đổi-tên), monitor gửi lại cảnh báo **🔄 cập nhật**.
+- **`firstSeenAt`** (từ v5): mốc **bot phát hiện** key lần đầu (ISO/UTC). `null` cho tin đã có sẵn lúc seed (không biết thời điểm thật) → **loại khỏi thống kê**. Chỉ tin xuất hiện **sau** seed mới có mốc thật.
+- **`dateISO` + `group`** (từ v5): ngày bìa + nhóm, để `--stats` tính **độ trễ** = ngày phát hiện − ngày bìa mà không cần dò lại site.
+
+### Thống kê độ trễ đăng tải
+
+```bash
+node monitor.mjs --stats     # in bảng "ngày bìa → ngày phát hiện" + tóm tắt (min/median/mean/max, theo nhóm)
+```
+
+Trên production, chạy workflow **`stats`** (`.github/workflows/stats.yml`) từ tab Actions → "Run workflow": nó đọc cache `seen.json` (**chỉ đọc**, không ghi) và in thống kê vào log. Dữ liệu tích lũy dần từ mỗi tin mới xuất hiện sau khi nâng lên v5 — đây là cách **đo bằng số liệu thật** thay vì giả định về độ trễ.
 
 ## Deploy
 

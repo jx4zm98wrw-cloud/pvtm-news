@@ -1,0 +1,31 @@
+name: stats
+
+# On-demand report: reads the shared seen.json cache and prints detection-lag
+# stats (cover date → first detected) to the run log. Trigger it from the Actions
+# tab ("Run workflow"). READ-ONLY — uses actions/cache/restore (never saves), so
+# it cannot disturb the monitor's state cache.
+on:
+  workflow_dispatch: {}
+
+jobs:
+  stats:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+
+      - run: npm install --no-audit --no-fund
+
+      # Restore-only: the key never matches, so it falls through to restore-keys
+      # and loads the most recent monitor state without ever writing a new cache.
+      - uses: actions/cache/restore@v6
+        with:
+          path: seen.json
+          key: pvtm-stats-readonly-never-hits
+          restore-keys: |
+            pvtm-seen-
+
+      - run: node monitor.mjs --stats

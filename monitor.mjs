@@ -5,14 +5,18 @@
 // article cloned-then-renamed that first appeared under a stale title), tagged
 // as an update so the corrected headline still reaches subscribers.
 //
-// State: seen.json { version, seen: {key: title}, updatedAt }. The schema/source
-// set changed across versions, so a mismatched/absent state is re-seeded SILENTLY
-// to avoid dumping the whole catalogue as "new" on the first upgraded run.
+// State: seen.json { version, seen: {key: {title, dateISO, group, firstSeenAt}},
+// updatedAt }. The schema/source set changed across versions, so a mismatched or
+// absent state is re-seeded SILENTLY to avoid dumping the whole catalogue as
+// "new" on the first upgraded run. `firstSeenAt` is the ISO time the monitor
+// first DETECTED the key (null for items already present at a re-seed, whose true
+// first-seen is unknown) → lets `--stats` measure cover-date-vs-detection lag.
 //
 // Usage:
 //   node monitor.mjs            # loop every 30 min
 //   node monitor.mjs --every 10 # every 10 minutes
 //   node monitor.mjs --once     # single check (for cron / GitHub Actions)
+//   node monitor.mjs --stats    # print cover-date → first-detected lag, then exit
 
 import { readFile, writeFile } from 'node:fs/promises';
 import { pathToFileURL } from 'node:url';
@@ -20,7 +24,7 @@ import { getAllItems, forDisplay, BASE_URL } from './scraper.mjs';
 import { notifyItems } from './notify.mjs';
 
 const STATE_FILE = new URL('./seen.json', import.meta.url);
-const STATE_VERSION = 4; // v4: store title per key → detect site-side title changes (re-seed)
+const STATE_VERSION = 5; // v5: store {title,dateISO,group,firstSeenAt} per key → title-change detection + detection-lag stats
 
 try { process.loadEnvFile(new URL('./.env', import.meta.url)); } catch { /* no .env */ }
 
@@ -50,6 +54,24 @@ export function shouldRecordSeen (results) {
 	return delivered || !hardFailed;
 }
 
+// Read the title from a seen-entry. v5 entries are objects; tolerate a bare
+// string too (defensive — a hand-edited or partially-migrated state).
+const titleOf = (e) => (typeof e === 'string' ? e : e?.title) || '';
+
+// Build the v5 seen-entry for an item being recorded. `existing` is its prior
+// entry (undefined when the key is genuinely new). A new key stamps the current
+// detection time; an already-seen key (title change) KEEPS its original
+// firstSeenAt — including null for seeded items, whose true first-seen is
+// unknown and must not be faked to the retitle moment.
+export function recordEntry (existing, item, nowISO) {
+	return {
+		title: item.title,
+		dateISO: item.dateISO ?? null, // cover date from the site (null if undated)
+		group: item.group,
+		firstSeenAt: existing ? (existing.firstSeenAt ?? null) : nowISO
+	};
+}
+
 // State is a Map<key, lastSeenTitle>, persisted as a plain object under `seen`.
 async function loadSeen () {
 	try {
@@ -72,7 +94,10 @@ async function checkOnce () {
 	const items = (await getAllItems()).filter((it) => it.key);
 
 	if (fresh) {
-		items.forEach((it) => seen.set(it.key, it.title));
+		// Seeded items were already present, so their true first-seen is unknown:
+		// firstSeenAt = null (excluded from lag stats). Only keys detected AFTER
+		// the seed get a real detection timestamp.
+		items.forEach((it) => seen.set(it.key, { title: it.title, dateISO: it.dateISO ?? null, group: it.group, firstSeenAt: null }));
 		await saveSeen(seen);
 		log(`seeded ${seen.size} items (first run / schema v${STATE_VERSION} — no alert sent)`);
 		return [];
@@ -85,7 +110,7 @@ async function checkOnce () {
 	const updatedItems = [];
 	for (const it of items) {
 		if (!seen.has(it.key)) { newItems.push(it); continue; }
-		if (titleKey(seen.get(it.key)) !== titleKey(it.title)) { it.updated = true; updatedItems.push(it); }
+		if (titleKey(titleOf(seen.get(it.key))) !== titleKey(it.title)) { it.updated = true; updatedItems.push(it); }
 	}
 	const alertItems = [...newItems, ...updatedItems];
 
@@ -118,14 +143,68 @@ async function checkOnce () {
 		return display;
 	}
 
-	// Record the current title for every alerted item (new + corrected).
-	alertItems.forEach((it) => seen.set(it.key, it.title));
+	// Record every alerted item (new + corrected). New keys get stamped with this
+	// run's detection time; retitled keys keep their original firstSeenAt.
+	const nowISO = new Date().toISOString();
+	alertItems.forEach((it) => seen.set(it.key, recordEntry(seen.get(it.key), it, nowISO)));
 	await saveSeen(seen);
 	return display;
 }
 
+// Compute the per-key lag between an item's cover date (dateISO, printed on the
+// site) and when the monitor FIRST detected it (firstSeenAt). Pure — takes the
+// parsed seen map, returns rows + summary so it can be unit-tested offline.
+// Seeded items (firstSeenAt=null) and undated items (dateISO=null) are excluded:
+// their lag is unknowable, and including them would fabricate the very statistic
+// we're trying to measure honestly.
+export function computeLagStats (seenObj = {}) {
+	const rows = Object.entries(seenObj)
+		.map(([key, e]) => ({ key, ...e }))
+		.filter((e) => e.firstSeenAt && e.dateISO)
+		.map((e) => ({
+			...e,
+			lagDays: Math.round((new Date(e.firstSeenAt) - new Date(e.dateISO + 'T00:00:00Z')) / 86400000)
+		}))
+		.sort((a, b) => a.firstSeenAt.localeCompare(b.firstSeenAt));
+	const lags = rows.map((r) => r.lagDays).sort((a, b) => a - b);
+	const summary = lags.length ? {
+		n: lags.length, min: lags[0], max: lags[lags.length - 1],
+		median: lags[Math.floor(lags.length / 2)],
+		mean: Number((lags.reduce((s, x) => s + x, 0) / lags.length).toFixed(1))
+	} : { n: 0 };
+	return { rows, summary };
+}
+
+async function printStats () {
+	let raw;
+	try { raw = JSON.parse(await readFile(STATE_FILE, 'utf8')); }
+	catch { console.log('No seen.json state found (nothing tracked yet).'); return; }
+	const total = Object.keys(raw.seen || {}).length;
+	if (raw.version !== STATE_VERSION) {
+		console.log(`seen.json is schema v${raw.version}; lag tracking starts at v${STATE_VERSION}. Run the monitor once to migrate, then data accrues as new items appear.`);
+		return;
+	}
+	const { rows, summary } = computeLagStats(raw.seen || {});
+	if (summary.n === 0) {
+		console.log(`No lag data yet: no item has been DETECTED since the v${STATE_VERSION} upgrade.`);
+		console.log(`(Seeded items are excluded — their true first-seen is unknown.) Total tracked keys: ${total}.`);
+		return;
+	}
+	console.log(`Detection lag (cover date → first detected), n=${summary.n} of ${total} keys:`);
+	rows.forEach((r) => console.log(`  ${String(r.lagDays).padStart(3)}d | [${r.group}] cover=${r.dateISO} seen=${r.firstSeenAt.slice(0, 10)} | ${titleOf(r).slice(0, 50)}`));
+	console.log(`\nlag days — min ${summary.min} · median ${summary.median} · mean ${summary.mean} · max ${summary.max}  (±1d: cover date is calendar-VN, detection is UTC)`);
+	const byGroup = {};
+	for (const r of rows) (byGroup[r.group] ??= []).push(r.lagDays);
+	for (const g of Object.keys(byGroup).sort()) {
+		const gl = byGroup[g].sort((a, b) => a - b);
+		const gm = (gl.reduce((s, x) => s + x, 0) / gl.length).toFixed(1);
+		console.log(`  group ${g}: n=${gl.length} · median ${gl[Math.floor(gl.length / 2)]}d · mean ${gm}d`);
+	}
+}
+
 async function main () {
 	const args = process.argv.slice(2);
+	if (args.includes('--stats')) { await printStats(); return; }
 	const once = args.includes('--once');
 	const everyIdx = args.indexOf('--every');
 	const minutes = everyIdx >= 0 ? Number(args[everyIdx + 1]) : 30;
