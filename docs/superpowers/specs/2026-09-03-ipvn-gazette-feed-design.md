@@ -2,7 +2,7 @@
 
 - **Ngày:** 2026-09-03
 - **Trạng thái:** Đã duyệt + **chốt 3 lựa chọn (theo khuyến nghị)**. chat_id nhóm IP đã cắm secret `TELEGRAM_CHAT_ID_IPVN`. Sẵn sàng lập kế hoạch triển khai
-- **Lựa chọn đã chốt:** ① cảnh báo guard #1 gửi **vào chính nhóm IP** · ② **chỉ Telegram** (email tắt ở v1, giữ hook bật sau qua `MAIL_TO_IPVN`) · ③ link trỏ **trang chi tiết**
+- **Lựa chọn đã chốt:** ① cảnh báo guard #1 gửi **vào chính nhóm IP** · ② **Telegram + Email** (email BẬT — 2026-09-08, "Hợp lý, chốt phương án này" — chốt mẫu email, triển khai email cho feed IP; bật qua `MAIL_TO_IPVN`, dùng lại SMTP pvtm, không fallback về `MAIL_TO`; guard #1 vẫn Telegram-only) · ③ link trỏ **trang chi tiết**
 - **Repo:** pvtm-news (thêm feed mới, cách ly với đường pvtm hiện có)
 - **Nguồn:** https://www.ipvietnam.gov.vn/cong-bao-so-huu-cong-nghiep1
 
@@ -31,8 +31,14 @@ thương mại (pvtm) đang chạy.
   state riêng `seen-ipvn.json`; hỗ trợ `--once` như monitor pvtm.
 
 ### File dùng lại (chỉ mở rộng an toàn)
-- **`notify.mjs`** — thêm **tham số tùy chọn** để định tuyến người nhận (chat/email) theo
-  feed; default = hành vi hiện tại → đường pvtm **không đổi một byte**.
+- **`messages-ipvn.mjs`** — thêm 3 hàm thuần cho email: `buildGazetteSubject`,
+  `buildGazettePlainText`, `buildGazetteEmail` (bảng + inline style, măng-sét
+  📕 riêng — nền `#EEE8E0`, gold `#C6A56E`, CTA `#7E5058`, cố ý khác navy/gold
+  PVTM Radar dù chung SMTP).
+- **`notify.mjs`** — thêm **hàm mới** `notifyEmailTo(items, opts, { mailToEnv })`
+  (định tuyến email theo route chỉ định, đọc **chỉ** `mailToEnv`, không
+  fallback về `MAIL_TO`); default = hành vi hiện tại → đường pvtm **không đổi
+  một byte** (test pvtm vẫn xanh).
 
 ### Item schema (từ scraper)
 ```
@@ -99,14 +105,18 @@ Sau mỗi lần quét, kiểm tra: (a) parse được **≥ 1 dòng**, (b) có *
 ## 5. Triển khai
 
 - **`monitor.yml`:** thêm 1 step `node monitor-ipvn.mjs --once` (sau step pvtm, `continue-on-error: true`)
-  + 1 cặp cache restore/save cho `seen-ipvn.json` (key `ipvn-seen-…`). Dùng chung trigger
-  cron-job.org mỗi 30' — **không cần cron/PAT/secret trigger mới**. Dead-man's-switch hiện có bao trùm.
+  + 1 cặp cache restore/save cho `seen-ipvn.json` (key `ipvn-seen-…`). Step nhận thêm
+  `SMTP_HOST/PORT/SECURE/USER/PASS`, `MAIL_FROM`, `MAIL_TO_IPVN` (cùng bộ secret SMTP pvtm
+  đã dùng, cộng secret nhận email riêng cho IP). Dùng chung trigger cron-job.org mỗi 30' —
+  **không cần cron/PAT/secret trigger mới**. Dead-man's-switch hiện có bao trùm.
 - **Secret mới (người dùng tự đặt):** `TELEGRAM_CHAT_ID_IPVN` (bắt buộc để bật Telegram),
-  `MAIL_TO_IPVN` (tùy chọn để bật email). Bot token + SMTP dùng lại của pvtm.
+  `MAIL_TO_IPVN` (bắt buộc để bật email — **đã bật** 2026-09-08). Bot token + SMTP dùng lại của pvtm.
 
 ## 6. Việc người dùng phải tự làm
 1. ✅ Tạo nhóm Telegram cho đội IP + thêm bot, lấy chat_id `-1004421463435` (supergroup). **(xong)**
-2. ✅ Secret `TELEGRAM_CHAT_ID_IPVN` đã đặt (2026-09-04, qua stdin — không lộ giá trị). `MAIL_TO_IPVN` **không dùng ở v1** (email tắt theo quyết định ②).
+2. ✅ Secret `TELEGRAM_CHAT_ID_IPVN` đã đặt (2026-09-04, qua stdin — không lộ giá trị).
+   `MAIL_TO_IPVN`: cần đặt secret này (giá trị = danh sách email đội IP, phẩy) để bật email —
+   **email đã triển khai code (2026-09-08)**, chỉ chờ secret để kích hoạt trên production.
    *(Claude không tự tạo nhóm; secret set qua stdin, không in giá trị.)*
 
 ## 7. Test (`test/ipvn.test.mjs`)

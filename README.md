@@ -54,7 +54,7 @@ npm test                  # unit test (node --test) — escaping + độ bền g
 | Email | `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASS`, `MAIL_TO`, `MAIL_FROM`, `MAIL_BCC` (danh sách ẩn, phẩy) |
 | Webhook | `WEBHOOK_SECRET` (khớp giữa Vercel ↔ setWebhook) — **bắt buộc**: webhook nay **fail-closed**, thiếu secret là **từ chối mọi request** (không còn để ngỏ) |
 | Giám sát | `HEALTHCHECK_URL` *(GitHub Actions secret, tùy chọn)* — mỗi run thành công ping một dead-man's-switch (vd healthchecks.io); nếu run ngừng, dịch vụ đó cảnh báo bạn |
-| Công báo SHCN | `TELEGRAM_CHAT_ID_IPVN` — nhóm Telegram riêng cho feed ipvietnam.gov.vn (dùng lại `TELEGRAM_BOT_TOKEN`, **không** fallback về chat pvtm; email tắt) |
+| Công báo SHCN | `TELEGRAM_CHAT_ID_IPVN` — nhóm Telegram riêng cho feed ipvietnam.gov.vn (dùng lại `TELEGRAM_BOT_TOKEN`, **không** fallback về chat pvtm). `MAIL_TO_IPVN` — danh sách email riêng cho feed IP (dùng lại SMTP ở trên, **không** fallback về `MAIL_TO`; để trống = chỉ Telegram) |
 
 ## Trạng thái (`seen.json`)
 
@@ -122,9 +122,9 @@ Trên production, chạy workflow **`stats`** (`.github/workflows/stats.yml`) t�
 Feed **độc lập** thứ hai, dùng chung hạ tầng nhưng cách ly hoàn toàn với pvtm.
 
 - **Nguồn:** bảng công báo tại `ipvietnam.gov.vn/cong-bao-so-huu-cong-nghiep1` (cột *Tiêu đề* + *Ngày xuất bản*, ~2 số/tháng). Định danh = **số công báo** (`Số 465`).
-- **File:** `ipvn.mjs` (scraper), `messages-ipvn.mjs` (tin Telegram 📕 + cảnh báo), `monitor-ipvn.mjs` (seen-diff). `notify.mjs` thêm `notifyTelegramTo` (gửi theo route chỉ định, **không** fallback).
+- **File:** `ipvn.mjs` (scraper), `messages-ipvn.mjs` (tin Telegram 📕 + cảnh báo + email `buildGazetteSubject`/`buildGazettePlainText`/`buildGazetteEmail`), `monitor-ipvn.mjs` (seen-diff). `notify.mjs` thêm `notifyTelegramTo` + `notifyEmailTo` (gửi theo route chỉ định, **không** fallback).
 - **State:** `seen-ipvn.json` (version 1) `{ version, degraded, seen: { "<số>": { title, dateISO, firstSeenAt } }, updatedAt }` — riêng, cache Actions namespace `ipvn-seen-` (không đụng `pvtm-seen-`). Seed lần đầu **im lặng**.
-- **Kênh:** chỉ Telegram, gửi vào `TELEGRAM_CHAT_ID_IPVN` (email tắt ở v1 — bật sau bằng cách thêm nhánh email nếu cần).
+- **Kênh:** Telegram, gửi vào `TELEGRAM_CHAT_ID_IPVN`. **Email đã BẬT** qua `MAIL_TO_IPVN` — danh sách riêng, dùng lại SMTP hiện có của pvtm nhưng **không** fallback về `MAIL_TO`; để trống = chỉ Telegram. Măng-sét/màu email riêng (nền `#EEE8E0`, gold `#C6A56E`, CTA `#7E5058`) — cố ý khác navy/gold của PVTM Radar để không lẫn trong hộp thư dù dùng chung SMTP.
 - **SSL:** site thiếu cert trung gian → `ipvn.mjs` tắt verify **chỉ cho request tới host này** (`https.rejectUnauthorized:false`, phạm vi hẹp). Chỉ đọc dữ liệu công khai, không gửi bí mật.
 - **Link → trang danh mục:** href chi tiết từng dòng trên site **lệch một số** một cách hệ thống (anchor ghi "Số 465" nhưng trỏ trang `so-464` — xác minh trên trình duyệt và toàn bộ dòng lúc kích hoạt). Vì thế alert link về **trang danh mục** (`url = SOURCE_URL`), không dùng href từng dòng; số + ngày trong tiêu đề là định danh tin cậy (giống cách nhóm D pvtm xử lý link JS).
 - **Guard tự cảnh báo:** nếu quét ra 0 dòng / không đọc được bảng (parser vỡ), feed gửi 1 tin `⚠️` vào nhóm IP và đặt `degraded=true`; khi bình thường trở lại gửi `✅` — chỉ báo khi **đổi trạng thái** (dead-man's-switch không bắt được ca này vì job vẫn success).
