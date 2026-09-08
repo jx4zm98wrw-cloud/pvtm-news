@@ -38,6 +38,15 @@ jobs:
           restore-keys: |
             pvtm-seen-
 
+      # Isolated cache for the IP-gazette state — namespace 'ipvn-seen-' must NOT
+      # collide with 'pvtm-seen-' or the two feeds would restore each other's state.
+      - uses: actions/cache@v6
+        with:
+          path: seen-ipvn.json
+          key: ipvn-seen-${{ github.run_id }}
+          restore-keys: |
+            ipvn-seen-
+
       - name: Run monitor
         run: node monitor.mjs --once
         env:
@@ -55,6 +64,16 @@ jobs:
           MAIL_TO: ${{ secrets.MAIL_TO }}
           MAIL_FROM: ${{ secrets.MAIL_FROM }}
           MAIL_BCC: ${{ secrets.MAIL_BCC }}
+
+      # IP-gazette feed — continue-on-error so a failure here NEVER turns the job
+      # red (which would suppress the liveness ping and fire a FALSE dead-man's
+      # alert). Its own structure guard handles genuine IP-feed breakage (#1/#4).
+      - name: Run IP gazette monitor
+        continue-on-error: true
+        run: node monitor-ipvn.mjs --once
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID_IPVN: ${{ secrets.TELEGRAM_CHAT_ID_IPVN }}
 
       # Dead-man's-switch: ping an external monitor (e.g. healthchecks.io) after a
       # successful run. If runs ever stop — external cron dies, workflow breaks —
