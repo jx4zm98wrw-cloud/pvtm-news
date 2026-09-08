@@ -74,6 +74,13 @@ jobs:
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID_IPVN: ${{ secrets.TELEGRAM_CHAT_ID_IPVN }}
+          SMTP_HOST: ${{ secrets.SMTP_HOST }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT }}
+          SMTP_SECURE: ${{ secrets.SMTP_SECURE }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASS: ${{ secrets.SMTP_PASS }}
+          MAIL_FROM: ${{ secrets.MAIL_FROM }}
+          MAIL_TO_IPVN: ${{ secrets.MAIL_TO_IPVN }}
 
       # Dead-man's-switch: ping an external monitor (e.g. healthchecks.io) after a
       # successful run. If runs ever stop — external cron dies, workflow breaks —
