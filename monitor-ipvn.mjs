@@ -7,12 +7,14 @@ import { readFile, writeFile } from 'node:fs/promises';
 import { pathToFileURL } from 'node:url';
 import { fetchGazetteHtml, parseGazette, isBroken } from './ipvn.mjs';
 import { buildGazetteTelegram, buildDegradedAlert } from './messages-ipvn.mjs';
-import { notifyTelegramTo } from './notify.mjs';
+import { notifyTelegramTo, notifyEmailTo } from './notify.mjs';
 import { shouldRecordSeen } from './monitor.mjs'; // safe import: monitor's main() is guarded
 
 const STATE_FILE = new URL('./seen-ipvn.json', import.meta.url);
 const STATE_VERSION = 1;
 const CHAT_ENV = 'TELEGRAM_CHAT_ID_IPVN';
+const MAIL_ENV = 'MAIL_TO_IPVN';
+const vnDateStr = () => new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Ho_Chi_Minh', day: '2-digit', month: '2-digit', year: 'numeric' }).format(new Date());
 
 try { process.loadEnvFile(new URL('./.env', import.meta.url)); } catch { /* no .env */ }
 const now = () => new Date().toISOString().replace('T', ' ').slice(0, 19);
@@ -67,10 +69,13 @@ export async function checkOnce () {
     buildGazetteTelegram(display, { title: `${newItems.length} công báo mới` }),
     { chatEnv: CHAT_ENV }
   );
-  log('notify:', res.sent || res.skipped || res.error);
+  log('notify (telegram):', res.sent || res.skipped || res.error);
 
-  // Only advance state if delivery happened (reuse pvtm's durability rule).
-  if (!shouldRecordSeen([res])) { log('⚠ not delivered — leaving unseen; retry next cycle'); await saveState(seen, false); return; }
+  const emailRes = await notifyEmailTo(display, { dateStr: vnDateStr() }, { mailToEnv: MAIL_ENV });
+  log('notify (email):', emailRes.sent || emailRes.skipped || emailRes.error);
+
+  // Only advance state if at least one channel delivered (reuse pvtm's durability rule).
+  if (!shouldRecordSeen([res, emailRes])) { log('⚠ not delivered — leaving unseen; retry next cycle'); await saveState(seen, false); return; }
   const nowISO = new Date().toISOString();
   newItems.forEach((it) => seen.set(it.key, { title: it.title, dateISO: it.dateISO ?? null, firstSeenAt: nowISO }));
   await saveState(seen, false);
