@@ -22,23 +22,18 @@ function telegramTargets () {
 	return targets;
 }
 
-async function sendTelegram (items, opts) {
-	const targets = telegramTargets();
-	if (targets.length === 0) return { channel: 'telegram', skipped: 'missing env' };
+// Post one pre-built payload to one chat. Isolated so both the multi-bot pvtm
+// sender and the single-route feed sender share identical transport + timeout.
+function postTelegram (token, chatId, payload) {
+	return got.post(`https://api.telegram.org/bot${token}/sendMessage`, {
+		json: { chat_id: chatId, text: payload.text, parse_mode: 'HTML',
+			disable_web_page_preview: true, reply_markup: payload.reply_markup },
+		timeout: { request: 15000 }
+	});
+}
 
-	const { text, reply_markup } = buildTelegram(items, opts);
-	const results = await Promise.allSettled(
-		targets.map((t) =>
-			got.post(`https://api.telegram.org/bot${t.token}/sendMessage`, {
-				json: { chat_id: t.chatId, text, parse_mode: 'HTML', disable_web_page_preview: true, reply_markup },
-				timeout: { request: 15000 }
-			})
-		)
-	);
-	// Surface WHY a target failed so a partial delivery isn't silent. The repo is
-	// public → Actions logs are public, so log only Telegram's JSON error body or
-	// the network error code — NEVER the request URL (it carries the bot token)
-	// nor the chat id. Position (#1, #2 …) maps to the ordered env config.
+// Public-log-safe per-target failure logging (no token/chat-id; position #1/#2…).
+function logRejected (results) {
 	results.forEach((r, i) => {
 		if (r.status === 'rejected') {
 			const e = r.reason;
@@ -46,9 +41,32 @@ async function sendTelegram (items, opts) {
 			console.error(`telegram: target #${i + 1} failed:`, typeof detail === 'string' ? detail.slice(0, 200) : detail);
 		}
 	});
+}
+
+async function sendTelegram (items, opts) {
+	const targets = telegramTargets();
+	if (targets.length === 0) return { channel: 'telegram', skipped: 'missing env' };
+
+	const { text, reply_markup } = buildTelegram(items, opts);
+	const results = await Promise.allSettled(targets.map((t) => postTelegram(t.token, t.chatId, { text, reply_markup })));
+	logRejected(results);
 	const ok = results.filter((r) => r.status === 'fulfilled').length;
 	if (ok < targets.length) return { channel: 'telegram', error: `delivered to ${ok}/${targets.length} chat(s)` };
 	return { channel: 'telegram', sent: `${items.length} item(s) → ${targets.length} chat(s)` };
+}
+
+// Send a pre-built Telegram payload to a SINGLE route named by env vars.
+// Reads ONLY tokenEnv/chatEnv — never falls back to the pvtm default chat.
+// Used by isolated feeds (e.g. the IP gazette feed) for their own recipients.
+export async function notifyTelegramTo (payload, { tokenEnv = 'TELEGRAM_BOT_TOKEN', chatEnv } = {}) {
+	const token = process.env[tokenEnv];
+	const chatIds = (process.env[chatEnv] || '').split(',').map((s) => s.trim()).filter(Boolean);
+	if (!token || chatIds.length === 0) return { channel: 'telegram', skipped: `missing ${chatEnv || 'chatEnv'}` };
+	const results = await Promise.allSettled(chatIds.map((id) => postTelegram(token, id, payload)));
+	logRejected(results);
+	const ok = results.filter((r) => r.status === 'fulfilled').length;
+	if (ok < chatIds.length) return { channel: 'telegram', error: `delivered to ${ok}/${chatIds.length} chat(s)` };
+	return { channel: 'telegram', sent: `→ ${chatIds.length} chat(s)` };
 }
 
 async function sendEmail (items, opts) {
