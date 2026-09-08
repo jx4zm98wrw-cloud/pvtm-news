@@ -61,7 +61,7 @@ thương mại (pvtm) đang chạy.
 
 ### Nội dung tin
 Măng-sét **`📕 Công báo Sở hữu công nghiệp`** (khác `📡 PVTM Radar` để nhận diện dù chung bot).
-Mỗi số: `Số 465 · 17/08/2026`, tiêu đề là **link trang chi tiết**.
+Mỗi số: `Số 465 · 17/08/2026`, tiêu đề là **link trang danh mục** (xem §8: href chi tiết của site lệch số nên không dùng được).
 
 ## 4. Hardening (bắt buộc — đã duyệt)
 
@@ -123,6 +123,7 @@ Sau mỗi lần quét, kiểm tra: (a) parse được **≥ 1 dòng**, (b) có *
 - **Site fix cert / đổi domain / chặn bot / trả trang challenge:** rơi về FAIL cấu trúc → guard #1 cảnh báo.
 - **Cache GitHub bị evict:** mất `firstSeenAt`, nhưng seed im lặng → không spam.
 - **Link Liferay mục nát theo thời gian:** chỉ ảnh hưởng link cũ, không ảnh hưởng tin mới.
+- **Href chi tiết lệch số (phát hiện lúc kích hoạt 2026-09-08):** anchor mỗi dòng trên site ghi "Số N" nhưng href trỏ trang `so-(N-1)` — lệch một số trên **mọi** dòng (guard #3 bắt được). Do đó `parseGazette` **không** dùng href từng dòng; `url = SOURCE_URL` (trang danh mục). Số + ngày trong tiêu đề là định danh tin cậy. Trường `numberMismatch` đã bỏ (không còn cần vì không tin href).
 
 ## 9. Ngoài phạm vi (YAGNI)
 - Tải/đính kèm PDF trực tiếp (trang liệt kê chỉ trỏ trang chi tiết — gửi link là đủ).

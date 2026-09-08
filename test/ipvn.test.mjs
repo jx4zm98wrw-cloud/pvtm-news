@@ -15,7 +15,7 @@ test('parseGazette: number from title, date from column, absolute url', () => {
   assert.equal(items[0].key, '465');
   assert.equal(items[0].dateISO, '2026-08-17');
   assert.equal(items[0].date, '17/08/2026');
-  assert.ok(items[0].url.startsWith('https://www.ipvietnam.gov.vn/'));
+  assert.equal(items[0].url, 'https://www.ipvietnam.gov.vn/cong-bao-so-huu-cong-nghiep1');
   // #2: the "tháng 04" (no day) format still parses its number
   assert.equal(items[1].key, '457');
   assert.equal(items[1].dateISO, '2026-04-27');
@@ -27,9 +27,13 @@ test('parseGazette: header row is not counted as content or dropped', () => {
   assert.equal(dropped.length, 0);   // "Tiêu đề" header never enters dropped
 });
 
-test('parseGazette: #3 flags label↔slug number mismatch', () => {
-  const html = `<table><tr><td><a href="/x/so-464-...">Số 465 ...</a></td><td>17/08/2026</td></tr></table>`;
-  assert.equal(parseGazette(html).items[0].numberMismatch, true);
+test('parseGazette: #3 link ignores the site off-by-one href → always the listing page', () => {
+  // The site's anchor text says "Số 465" but its href points at the so-464 page.
+  // We must NOT trust that href; the link always goes to the gazette listing.
+  const html = `<table><tr><td><a href="/x/so-464-ngay-03-thang-08">Số 465 ngày 17 tháng 08 năm 2026</a></td><td>17/08/2026</td></tr></table>`;
+  const { items } = parseGazette(html);
+  assert.equal(items[0].key, '465');
+  assert.equal(items[0].url, 'https://www.ipvietnam.gov.vn/cong-bao-so-huu-cong-nghiep1');
 });
 
 test('parseGazette: a content row with no issue number goes to dropped, not items', () => {

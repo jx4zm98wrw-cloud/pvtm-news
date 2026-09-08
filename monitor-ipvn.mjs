@@ -49,7 +49,6 @@ export async function checkOnce () {
     return;
   }
   if (degraded) { log('feed recovered'); await notifyTelegramTo(buildDegradedAlert('up'), { chatEnv: CHAT_ENV }); }
-  items.forEach((it) => { if (it.numberMismatch) log(`⚠ number mismatch (label ${it.key} vs slug): ${it.url}`); });
 
   // First run / schema change: seed silently (firstSeenAt=null → excluded later).
   if (fresh) {

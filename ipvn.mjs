@@ -45,16 +45,19 @@ export function parseGazette (html, baseUrl = SOURCE_URL) {
     rows++;
     const no = title.match(ISSUE_RE);
     if (!no) { dropped.push(title); return; }
-    const href = a.attr('href') || '';
     const dateRaw = ($(tds[1]).text().match(/\d{1,2}\/\d{1,2}\/\d{4}/) || [])[0] || null;
-    const slugNo = (href.match(/so-(\d+)/i) || [])[1];
     items.push({
       key: no[1],
       title,
-      url: href ? new URL(href, baseUrl).href : baseUrl,
+      // The site's per-row detail hrefs are systematically off by one issue
+      // (the anchor whose text is "Số 465" links to the so-464 page — verified
+      // in-browser and across every row at activation). Linking to them would
+      // send readers to the WRONG, older gazette. The issue number + date in the
+      // title is the reliable identity; link to the listing page instead, mirroring
+      // how the pvtm group-D legal table handles its non-static (JS) links.
+      url: baseUrl,
       date: dateRaw,
-      dateISO: toISODate(dateRaw),
-      numberMismatch: slugNo ? slugNo !== no[1] : false
+      dateISO: toISODate(dateRaw)
     });
   });
   return { items, rows, dropped };

@@ -126,6 +126,7 @@ Feed **độc lập** thứ hai, dùng chung hạ tầng nhưng cách ly hoàn t
 - **State:** `seen-ipvn.json` (version 1) `{ version, degraded, seen: { "<số>": { title, dateISO, firstSeenAt } }, updatedAt }` — riêng, cache Actions namespace `ipvn-seen-` (không đụng `pvtm-seen-`). Seed lần đầu **im lặng**.
 - **Kênh:** chỉ Telegram, gửi vào `TELEGRAM_CHAT_ID_IPVN` (email tắt ở v1 — bật sau bằng cách thêm nhánh email nếu cần).
 - **SSL:** site thiếu cert trung gian → `ipvn.mjs` tắt verify **chỉ cho request tới host này** (`https.rejectUnauthorized:false`, phạm vi hẹp). Chỉ đọc dữ liệu công khai, không gửi bí mật.
+- **Link → trang danh mục:** href chi tiết từng dòng trên site **lệch một số** một cách hệ thống (anchor ghi "Số 465" nhưng trỏ trang `so-464` — xác minh trên trình duyệt và toàn bộ dòng lúc kích hoạt). Vì thế alert link về **trang danh mục** (`url = SOURCE_URL`), không dùng href từng dòng; số + ngày trong tiêu đề là định danh tin cậy (giống cách nhóm D pvtm xử lý link JS).
 - **Guard tự cảnh báo:** nếu quét ra 0 dòng / không đọc được bảng (parser vỡ), feed gửi 1 tin `⚠️` vào nhóm IP và đặt `degraded=true`; khi bình thường trở lại gửi `✅` — chỉ báo khi **đổi trạng thái** (dead-man's-switch không bắt được ca này vì job vẫn success).
 - **Deploy:** chạy như step `Run IP gazette monitor` (`continue-on-error: true`) trong `monitor.yml`, ngay sau step pvtm và trước liveness ping — lỗi feed IP **không** làm job đỏ (tránh dead-man's-switch giả). Dùng chung cron-job.org mỗi 30'.
 
