@@ -54,6 +54,7 @@ npm test                  # unit test (node --test) — escaping + độ bền g
 | Email | `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASS`, `MAIL_TO`, `MAIL_FROM`, `MAIL_BCC` (danh sách ẩn, phẩy) |
 | Webhook | `WEBHOOK_SECRET` (khớp giữa Vercel ↔ setWebhook) — **bắt buộc**: webhook nay **fail-closed**, thiếu secret là **từ chối mọi request** (không còn để ngỏ) |
 | Giám sát | `HEALTHCHECK_URL` *(GitHub Actions secret, tùy chọn)* — mỗi run thành công ping một dead-man's-switch (vd healthchecks.io); nếu run ngừng, dịch vụ đó cảnh báo bạn |
+| Công báo SHCN | `TELEGRAM_CHAT_ID_IPVN` — nhóm Telegram riêng cho feed ipvietnam.gov.vn (dùng lại `TELEGRAM_BOT_TOKEN`, **không** fallback về chat pvtm; email tắt) |
 
 ## Trạng thái (`seen.json`)
 
@@ -115,6 +116,20 @@ Trên production, chạy workflow **`stats`** (`.github/workflows/stats.yml`) t�
   chỉ gửi tới `TELEGRAM_CHAT_ID`. Để nhóm cũng nhận: gõ **`/id`** trong nhóm → bot trả
   chat_id → thêm vào `TELEGRAM_CHAT_ID` (phẩy, cả GitHub secret lẫn `.env`). *(Tự động
   hoá cho mọi nhóm cần kho chat_id chung — xem "phương án B", chưa triển khai.)*
+
+## Feed 2 — Công báo Sở hữu công nghiệp (ipvietnam.gov.vn)
+
+Feed **độc lập** thứ hai, dùng chung hạ tầng nhưng cách ly hoàn toàn với pvtm.
+
+- **Nguồn:** bảng công báo tại `ipvietnam.gov.vn/cong-bao-so-huu-cong-nghiep1` (cột *Tiêu đề* + *Ngày xuất bản*, ~2 số/tháng). Định danh = **số công báo** (`Số 465`).
+- **File:** `ipvn.mjs` (scraper), `messages-ipvn.mjs` (tin Telegram 📕 + cảnh báo), `monitor-ipvn.mjs` (seen-diff). `notify.mjs` thêm `notifyTelegramTo` (gửi theo route chỉ định, **không** fallback).
+- **State:** `seen-ipvn.json` (version 1) `{ version, degraded, seen: { "<số>": { title, dateISO, firstSeenAt } }, updatedAt }` — riêng, cache Actions namespace `ipvn-seen-` (không đụng `pvtm-seen-`). Seed lần đầu **im lặng**.
+- **Kênh:** chỉ Telegram, gửi vào `TELEGRAM_CHAT_ID_IPVN` (email tắt ở v1 — bật sau bằng cách thêm nhánh email nếu cần).
+- **SSL:** site thiếu cert trung gian → `ipvn.mjs` tắt verify **chỉ cho request tới host này** (`https.rejectUnauthorized:false`, phạm vi hẹp). Chỉ đọc dữ liệu công khai, không gửi bí mật.
+- **Guard tự cảnh báo:** nếu quét ra 0 dòng / không đọc được bảng (parser vỡ), feed gửi 1 tin `⚠️` vào nhóm IP và đặt `degraded=true`; khi bình thường trở lại gửi `✅` — chỉ báo khi **đổi trạng thái** (dead-man's-switch không bắt được ca này vì job vẫn success).
+- **Deploy:** chạy như step `Run IP gazette monitor` (`continue-on-error: true`) trong `monitor.yml`, ngay sau step pvtm và trước liveness ping — lỗi feed IP **không** làm job đỏ (tránh dead-man's-switch giả). Dùng chung cron-job.org mỗi 30'.
+
+Thiết kế & kế hoạch chi tiết: `docs/superpowers/specs/2026-09-03-ipvn-gazette-feed-design.md`, `docs/superpowers/plans/2026-09-03-ipvn-gazette-feed.md`.
 
 ## Việc còn lại / hạn chế
 
