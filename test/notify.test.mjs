@@ -19,18 +19,18 @@ test('notifyTelegramTo skips when token env is unset', async () => {
   assert.ok(r.skipped);
 });
 
-test('notifyEmailTo skips (no send) when its mailToEnv is unset — no fallback to MAIL_TO', async () => {
+test('notifyEmailTo skips (no send) when its mailToEnv is unset — no fallback to MAIL_TO_PVTM', async () => {
   delete process.env.MAIL_TO_IPVN;
   process.env.SMTP_HOST = 'smtp.example.com';
   process.env.SMTP_USER = 'u';
   process.env.SMTP_PASS = 'p';
-  process.env.MAIL_TO = 'someone@else.com'; // pvtm's own recipient — must never be used as a fallback
+  process.env.MAIL_TO_PVTM = 'someone@else.com'; // pvtm's own recipient — must never be used as a fallback
   const r = await notifyEmailTo([{ key: '1', title: 't', url: 'https://x', date: '01/01/2026' }], {}, { mailToEnv: 'MAIL_TO_IPVN' });
   assert.equal(r.channel, 'email');
   assert.match(r.skipped, /MAIL_TO_IPVN/);
   assert.equal(r.sent, undefined);
   assert.equal(r.error, undefined);
-  delete process.env.MAIL_TO;
+  delete process.env.MAIL_TO_PVTM;
 });
 
 test('notifyEmailTo skips when SMTP env is missing', async () => {

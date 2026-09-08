@@ -7,20 +7,15 @@ import nodemailer from 'nodemailer';
 import { buildTelegram, buildEmail, buildPlainText, buildSubject } from './messages.mjs';
 import { buildGazetteSubject, buildGazettePlainText, buildGazetteEmail } from './messages-ipvn.mjs';
 
-// Telegram destinations:
-//  - TELEGRAM_CHAT_ID may be comma-separated (one bot -> many chats)
-//  - extra bots via TELEGRAM_BOT_TOKEN_2 / TELEGRAM_CHAT_ID_2 … _5
+// pvtm Telegram destinations: shared bot (TELEGRAM_BOT_TOKEN) → the comma-
+// separated chat list in TELEGRAM_CHAT_ID_PVTM (one bot, one-or-many chats).
+// Naming convention: transport (bot token, SMTP) is shared and un-suffixed;
+// per-monitor recipients carry a _<MON> suffix (pvtm here, _IPVN for the gazette).
 function telegramTargets () {
-	const targets = [];
-	for (const suffix of ['', '_2', '_3', '_4', '_5']) {
-		const token = process.env[`TELEGRAM_BOT_TOKEN${suffix}`];
-		const chatIds = process.env[`TELEGRAM_CHAT_ID${suffix}`];
-		if (!token || !chatIds) continue;
-		for (const chatId of chatIds.split(',').map((s) => s.trim()).filter(Boolean)) {
-			targets.push({ token, chatId });
-		}
-	}
-	return targets;
+	const token = process.env.TELEGRAM_BOT_TOKEN;
+	const chatIds = (process.env.TELEGRAM_CHAT_ID_PVTM || '').split(',').map((s) => s.trim()).filter(Boolean);
+	if (!token || chatIds.length === 0) return [];
+	return chatIds.map((chatId) => ({ token, chatId }));
 }
 
 // Post one pre-built payload to one chat. Isolated so both the multi-bot pvtm
@@ -83,22 +78,22 @@ function smtpTransporter () {
 }
 
 async function sendEmail (items, opts) {
-	const { SMTP_HOST, SMTP_USER, SMTP_PASS, MAIL_TO } = process.env;
-	if (!SMTP_HOST || !SMTP_USER || !SMTP_PASS || !MAIL_TO) return { channel: 'email', skipped: 'missing env' };
+	const { SMTP_HOST, SMTP_USER, SMTP_PASS, MAIL_TO_PVTM } = process.env;
+	if (!SMTP_HOST || !SMTP_USER || !SMTP_PASS || !MAIL_TO_PVTM) return { channel: 'email', skipped: 'missing env' };
 
 	const transporter = smtpTransporter();
 	const mail = {
 		from: process.env.MAIL_FROM || SMTP_USER,
-		to: MAIL_TO,
+		to: MAIL_TO_PVTM,
 		subject: buildSubject(items),
 		text: buildPlainText(items),
 		html: buildEmail(items, opts)
 	};
 	// Hidden distribution list — recipients don't see each other (comma-separated).
-	if (process.env.MAIL_BCC) mail.bcc = process.env.MAIL_BCC;
+	if (process.env.MAIL_BCC_PVTM) mail.bcc = process.env.MAIL_BCC_PVTM;
 	await transporter.sendMail(mail);
 
-	const bcc = process.env.MAIL_BCC ? process.env.MAIL_BCC.split(',').filter((s) => s.trim()).length : 0;
+	const bcc = process.env.MAIL_BCC_PVTM ? process.env.MAIL_BCC_PVTM.split(',').filter((s) => s.trim()).length : 0;
 	return { channel: 'email', sent: bcc ? `${items.length} (to 1 + bcc ${bcc})` : items.length };
 }
 
@@ -110,7 +105,7 @@ export async function notifyItems (items, opts = {}) {
 }
 
 // Send the IP-gazette email to a SINGLE route named by env vars. Reads ONLY
-// mailToEnv — never falls back to pvtm's MAIL_TO. Mirrors notifyTelegramTo's
+// mailToEnv — never falls back to pvtm's MAIL_TO_PVTM. Mirrors notifyTelegramTo's
 // isolated-routing contract. opts: { dateStr } (forwarded to buildGazetteEmail).
 export async function notifyEmailTo (items, opts = {}, { mailToEnv } = {}) {
 	const { SMTP_HOST, SMTP_USER, SMTP_PASS } = process.env;

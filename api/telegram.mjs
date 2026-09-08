@@ -57,7 +57,7 @@ export default async function handler (req, res) {
 			await got.post(`https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
 				json: {
 					chat_id: id,
-					text: `🆔 Chat ID: <code>${id}</code>\nThêm ID này vào <b>TELEGRAM_CHAT_ID</b> để nhóm nhận cảnh báo tin mới.`,
+					text: `🆔 Chat ID: <code>${id}</code>\nThêm ID này vào secret <b>TELEGRAM_CHAT_ID_PVTM</b> (hoặc <b>_IPVN</b>) để nhóm nhận cảnh báo tin mới.`,
 					parse_mode: 'HTML'
 				},
 				timeout: { request: 15000 }

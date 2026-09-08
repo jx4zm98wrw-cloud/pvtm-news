@@ -50,11 +50,13 @@ npm test                  # unit test (node --test) — escaping + độ bền g
 
 | Kênh | Biến |
 |------|------|
-| Telegram | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` (phẩy = nhiều chat; `_2`/`_3` = thêm bot) |
-| Email | `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASS`, `MAIL_TO`, `MAIL_FROM`, `MAIL_BCC` (danh sách ẩn, phẩy) |
+| Transport (**chung mọi monitor**) | `TELEGRAM_BOT_TOKEN`; `SMTP_HOST`/`SMTP_PORT`/`SMTP_SECURE`/`SMTP_USER`/`SMTP_PASS`; `MAIL_FROM` |
+| Người nhận **PVTM** | `TELEGRAM_CHAT_ID_PVTM` (phẩy = nhiều chat), `MAIL_TO_PVTM`, `MAIL_BCC_PVTM` (danh sách ẩn) |
+| Người nhận **IPVN** (Công báo SHCN) | `TELEGRAM_CHAT_ID_IPVN`, `MAIL_TO_IPVN` — dùng lại transport chung; **không** fallback sang recipients của pvtm; để trống = tắt kênh đó cho feed này |
 | Webhook | `WEBHOOK_SECRET` (khớp giữa Vercel ↔ setWebhook) — **bắt buộc**: webhook nay **fail-closed**, thiếu secret là **từ chối mọi request** (không còn để ngỏ) |
 | Giám sát | `HEALTHCHECK_URL` *(GitHub Actions secret, tùy chọn)* — mỗi run thành công ping một dead-man's-switch (vd healthchecks.io); nếu run ngừng, dịch vụ đó cảnh báo bạn |
-| Công báo SHCN | `TELEGRAM_CHAT_ID_IPVN` — nhóm Telegram riêng cho feed ipvietnam.gov.vn (dùng lại `TELEGRAM_BOT_TOKEN`, **không** fallback về chat pvtm). `MAIL_TO_IPVN` — danh sách email riêng cho feed IP (dùng lại SMTP ở trên, **không** fallback về `MAIL_TO`; để trống = chỉ Telegram) |
+
+> **Quy ước đặt tên:** *transport* (bot token, SMTP) dùng chung, **không** hậu tố; *người nhận* theo từng monitor mang hậu tố `_<MON>` (`_PVTM`, `_IPVN`, …). Thêm monitor mới ⇒ chỉ thêm `TELEGRAM_CHAT_ID_<MON>` / `MAIL_TO_<MON>`. (Đã bỏ cơ chế multi-bot `_2..5` không dùng; nhiều chat vẫn hỗ trợ qua dấu phẩy.)
 
 ## Trạng thái (`seen.json`)
 

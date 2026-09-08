@@ -51,19 +51,15 @@ jobs:
         run: node monitor.mjs --once
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-          TELEGRAM_BOT_TOKEN_2: ${{ secrets.TELEGRAM_BOT_TOKEN_2 }}
-          TELEGRAM_CHAT_ID_2: ${{ secrets.TELEGRAM_CHAT_ID_2 }}
-          TELEGRAM_BOT_TOKEN_3: ${{ secrets.TELEGRAM_BOT_TOKEN_3 }}
-          TELEGRAM_CHAT_ID_3: ${{ secrets.TELEGRAM_CHAT_ID_3 }}
+          TELEGRAM_CHAT_ID_PVTM: ${{ secrets.TELEGRAM_CHAT_ID_PVTM }}
           SMTP_HOST: ${{ secrets.SMTP_HOST }}
           SMTP_PORT: ${{ secrets.SMTP_PORT }}
           SMTP_SECURE: ${{ secrets.SMTP_SECURE }}
           SMTP_USER: ${{ secrets.SMTP_USER }}
           SMTP_PASS: ${{ secrets.SMTP_PASS }}
-          MAIL_TO: ${{ secrets.MAIL_TO }}
+          MAIL_TO_PVTM: ${{ secrets.MAIL_TO_PVTM }}
           MAIL_FROM: ${{ secrets.MAIL_FROM }}
-          MAIL_BCC: ${{ secrets.MAIL_BCC }}
+          MAIL_BCC_PVTM: ${{ secrets.MAIL_BCC_PVTM }}
 
       # IP-gazette feed — continue-on-error so a failure here NEVER turns the job
       # red (which would suppress the liveness ping and fire a FALSE dead-man's
