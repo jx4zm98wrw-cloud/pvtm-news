@@ -5,6 +5,7 @@
 import got from 'got';
 import nodemailer from 'nodemailer';
 import { buildTelegram, buildEmail, buildPlainText, buildSubject } from './messages.mjs';
+import { buildGazetteSubject, buildGazettePlainText, buildGazetteEmail } from './messages-ipvn.mjs';
 
 // Telegram destinations:
 //  - TELEGRAM_CHAT_ID may be comma-separated (one bot -> many chats)
@@ -69,16 +70,23 @@ export async function notifyTelegramTo (payload, { tokenEnv = 'TELEGRAM_BOT_TOKE
 	return { channel: 'telegram', sent: `→ ${chatIds.length} chat(s)` };
 }
 
-async function sendEmail (items, opts) {
-	const { SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, MAIL_TO } = process.env;
-	if (!SMTP_HOST || !SMTP_USER || !SMTP_PASS || !MAIL_TO) return { channel: 'email', skipped: 'missing env' };
-
-	const transporter = nodemailer.createTransport({
+// Shared SMTP transporter, built from the same env pattern for every email
+// sender (pvtm's sendEmail + the isolated-feed notifyEmailTo below).
+function smtpTransporter () {
+	const { SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS } = process.env;
+	return nodemailer.createTransport({
 		host: SMTP_HOST,
 		port: Number(SMTP_PORT) || 587,
 		secure: process.env.SMTP_SECURE === 'true',
 		auth: { user: SMTP_USER, pass: SMTP_PASS }
 	});
+}
+
+async function sendEmail (items, opts) {
+	const { SMTP_HOST, SMTP_USER, SMTP_PASS, MAIL_TO } = process.env;
+	if (!SMTP_HOST || !SMTP_USER || !SMTP_PASS || !MAIL_TO) return { channel: 'email', skipped: 'missing env' };
+
+	const transporter = smtpTransporter();
 	const mail = {
 		from: process.env.MAIL_FROM || SMTP_USER,
 		to: MAIL_TO,
@@ -99,4 +107,27 @@ export async function notifyItems (items, opts = {}) {
 	if (!items.length) return [];
 	const results = await Promise.allSettled([sendTelegram(items, opts), sendEmail(items, opts)]);
 	return results.map((r) => (r.status === 'fulfilled' ? r.value : { channel: '?', error: r.reason?.message }));
+}
+
+// Send the IP-gazette email to a SINGLE route named by env vars. Reads ONLY
+// mailToEnv — never falls back to pvtm's MAIL_TO. Mirrors notifyTelegramTo's
+// isolated-routing contract. opts: { dateStr } (forwarded to buildGazetteEmail).
+export async function notifyEmailTo (items, opts = {}, { mailToEnv } = {}) {
+	const { SMTP_HOST, SMTP_USER, SMTP_PASS } = process.env;
+	const to = (process.env[mailToEnv] || '').trim();
+	if (!SMTP_HOST || !SMTP_USER || !SMTP_PASS || !to) return { channel: 'email', skipped: `missing SMTP or ${mailToEnv || 'mailToEnv'}` };
+
+	try {
+		const transporter = smtpTransporter();
+		await transporter.sendMail({
+			from: process.env.MAIL_FROM || SMTP_USER,
+			to,
+			subject: buildGazetteSubject(items),
+			text: buildGazettePlainText(items),
+			html: buildGazetteEmail(items, opts)
+		});
+		return { channel: 'email', sent: items.length };
+	} catch (e) {
+		return { channel: 'email', error: e?.message };
+	}
 }
