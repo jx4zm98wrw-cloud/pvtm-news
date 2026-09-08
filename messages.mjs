@@ -4,7 +4,7 @@
 
 import { GROUPS, BASE_URL } from './scraper.mjs';
 
-function escapeHtml (s = '') {
+export function escapeHtml (s = '') {
 	return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
@@ -12,7 +12,7 @@ function escapeHtml (s = '') {
 // Adds `"` on top of escapeHtml so a scraped URL containing a quote or `&`
 // can't break out of the attribute or corrupt Telegram's HTML entity parsing
 // (which rejects the whole message on malformed entities).
-function escapeAttr (s = '') {
+export function escapeAttr (s = '') {
 	return escapeHtml(s).replace(/"/g, '&quot;');
 }
 
