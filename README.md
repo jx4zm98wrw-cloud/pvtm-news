@@ -95,7 +95,7 @@ Trên production, chạy workflow **`stats`** (`.github/workflows/stats.yml`) t�
     thể bị chặn nếu thanh toán lỗi / chạm spending limit — đó là lý do chuyển sang public.) Secrets
     vẫn **riêng tư** kể cả khi repo public; workflow chỉ `workflow_dispatch` nên PR từ fork không
     lấy được secret. Muốn về private: sửa Billing trên GitHub rồi `gh repo edit --visibility private`.
-  - **Kích hoạt:** **chỉ** bằng **cron ngoài** (cron-job.org) gọi `workflow_dispatch` mỗi 30 phút.
+  - **Kích hoạt:** **chỉ** bằng **cron ngoài** (cron-job.org) gọi `workflow_dispatch` **8 lần/ngày** (2h/lần, 05–19h VN; im 19:01–04:59).
     Lịch `schedule` trong workflow đã **gỡ bỏ** — GitHub chạy `schedule` best-effort, bỏ phần
     lớn nhịp khi tải cao (quan sát khoảng trống tới ~3h). Vì `monitor` dùng seen-diff nên nhịp
     rơi chỉ làm **trễ**, không **mất** tin.
@@ -106,12 +106,12 @@ Trên production, chạy workflow **`stats`** (`.github/workflows/stats.yml`) t�
        tokens): chỉ repo `pvtm-news`, quyền **Actions: Read and write**, hạn dài (vd 1 năm).
     2. cron-job.org → tạo job:
        - URL: `https://api.github.com/repos/jx4zm98wrw-cloud/pvtm-news/actions/workflows/monitor.yml/dispatches`
-       - Method `POST`; Schedule `*/30 * * * *`
+       - Method `POST`; Timezone `Asia/Ho_Chi_Minh`; Schedule `0 5,7,9,11,13,15,17,19 * * *` (2h/lần, 05–19h VN; im 19:01–04:59)
        - Headers: `Authorization: Bearer <PAT>`, `Accept: application/vnd.github+json`,
          `Content-Type: application/json`, `User-Agent: pvtm-cron`
        - Body: `{"ref":"main"}`
     3. Kỳ vọng HTTP **204 No Content** = đã kích. Xác minh: `gh run list` thấy các run
-       `event=workflow_dispatch` cách nhau đều ~30 phút.
+       `event=workflow_dispatch` vào các giờ 05,07,…,19h VN (2h/lần).
     - PAT chỉ nằm ở cron-job.org, **không** commit vào repo.
 - **Webhook lời chào:** Vercel (`api/telegram.mjs`), stateless. Đăng ký: `node set-webhook.mjs https://<app>.vercel.app/api/telegram`.
 - **Nhóm nhận cảnh báo định kỳ:** lời chào tự vào nhóm, nhưng cảnh báo tin mới (monitor)
@@ -130,7 +130,7 @@ Feed **độc lập** thứ hai, dùng chung hạ tầng nhưng cách ly hoàn t
 - **SSL:** site thiếu cert trung gian → `ipvn.mjs` tắt verify **chỉ cho request tới host này** (`https.rejectUnauthorized:false`, phạm vi hẹp). Chỉ đọc dữ liệu công khai, không gửi bí mật.
 - **Link → trang danh mục:** href chi tiết từng dòng trên site **lệch một số** một cách hệ thống (anchor ghi "Số 465" nhưng trỏ trang `so-464` — xác minh trên trình duyệt và toàn bộ dòng lúc kích hoạt). Vì thế alert link về **trang danh mục** (`url = SOURCE_URL`), không dùng href từng dòng; số + ngày trong tiêu đề là định danh tin cậy (giống cách nhóm D pvtm xử lý link JS).
 - **Guard tự cảnh báo:** nếu quét ra 0 dòng / không đọc được bảng (parser vỡ), feed gửi 1 tin `⚠️` vào nhóm IP và đặt `degraded=true`; khi bình thường trở lại gửi `✅` — chỉ báo khi **đổi trạng thái** (dead-man's-switch không bắt được ca này vì job vẫn success).
-- **Deploy:** chạy như step `Run IP gazette monitor` (`continue-on-error: true`) trong `monitor.yml`, ngay sau step pvtm và trước liveness ping — lỗi feed IP **không** làm job đỏ (tránh dead-man's-switch giả). Dùng chung cron-job.org mỗi 30'.
+- **Deploy:** chạy như step `Run IP gazette monitor` (`continue-on-error: true`) trong `monitor.yml`, ngay sau step pvtm và trước liveness ping — lỗi feed IP **không** làm job đỏ (tránh dead-man's-switch giả). Dùng chung cron-job.org (8 lần/ngày, 05–19h VN).
 
 Thiết kế & kế hoạch chi tiết: `docs/superpowers/specs/2026-09-03-ipvn-gazette-feed-design.md`, `docs/superpowers/plans/2026-09-03-ipvn-gazette-feed.md`.
 
